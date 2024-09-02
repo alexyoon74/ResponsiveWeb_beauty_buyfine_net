@@ -1,0 +1,400 @@
+<?
+if(!$INCLUDE_COMM) include_once "PUBLIC_FUNC/BUYFINE/COMM_FUNC.inc";
+if(!$IS_FUNC_CORE) include_once "PUBLIC_FUNC/BUYFINE/func_core.inc";
+if(!$IS_API_CONFIG) include_once "PUBLIC_FUNC/BUYFINE/api/config.inc";
+if(!$IS_BT_VERYM_CONFIG) include_once "PUBLIC_FUNC/BUYFINE/beauty/verym_187_config.inc";
+if($ABSOLUTE_HTTPS>0 && $_SERVER['REQUEST_SCHEME']=='http')
+{
+	Header("Location:https://{$_SERVER['HTTP_HOST']}{$_SERVER['REQUEST_URI']}");
+	exit;
+}
+$is_yes_print = 0;
+if($_GET['alex_print'])
+{
+	$_GET['alex_print'] = intval($_GET['alex_print']);
+	if($_GET['alex_print']>0 && $_MEMBER['m_uid']=='1') $is_yes_print=$_GET['alex_print'];
+	if($_GET['alex_print']>0 && $NO_AUTH_PRINT>0) $is_yes_print=$_GET['alex_print'];//$NO_AUTH_PRINT assign verym_187_config.inc
+}
+if($is_yes_print > 0)
+{
+	$arr_query_runtime = array();
+	$query_runtime_idx = 0;
+	echo "REMOTE_ADDR=".$_SERVER['REMOTE_ADDR']."<br />";
+}
+$arr_get = array();
+foreach($_GET AS $key=>$value)
+{
+	$value = trim($value);
+	if(!$value) continue;
+	//if($key=='arrSSV') continue;
+	$arr_get[$key] = $value;
+}
+unset($_GET);
+if($is_yes_print > 1)
+{
+	echo "arr_get 1 = ";
+	echo("<pre>");print_r($arr_get);echo("</pre>");
+}
+$arr_get = array_map('str_filter', $arr_get); //str_replace
+$arr_get = array_map('db_escape_string', $arr_get); //mysql_escape_string
+if($is_yes_print > 1)
+{
+	echo "arr_get 2 = ";
+	echo("<pre>");print_r($arr_get);echo("</pre>");
+}
+$is_robot = 0;
+$LAZY_IS_ROBOT = 0;
+$LAZY_IS_IP_ROBOT = 0;
+foreach($ARR_ROBOT_STR AS $robot_str) // asing ARR_ROBOT_STR COMM_FUNC.inc
+{
+	if(preg_match("/".$robot_str."/i", $_SERVER['HTTP_USER_AGENT']))
+	{
+		$is_robot = 1;
+		$LAZY_IS_ROBOT = 1;
+		break;
+	}
+	else
+	{
+	}
+}
+foreach($ARR_ROBOT_IP_LISTS AS $robot_ip_str) // asing $USER_REMOTE_IP, $ARR_ROBOT_IP_LISTS COMM_FUNC
+{
+	if(preg_match("/".$robot_ip_str."/i", $USER_REMOTE_IP))
+	{
+		$is_robot = 1;
+		$LAZY_IS_IP_ROBOT = 1;
+		break;
+	}
+	else
+	{
+	}
+}
+$IS_NO_MANNER_ROBOT_IP = 0;
+$no_manner_ip_count = count($ARR_ROBOT_NO_MANNER_IP_LISTS); // $USER_REMOTE_IP, $ARR_ROBOT_NO_MANNER_IP_LISTS assign COMM_FUNC.inc
+if($no_manner_ip_count > 0)
+{
+	if(in_array($USER_REMOTE_IP, $ARR_ROBOT_NO_MANNER_IP_LISTS))
+	{
+		$is_robot = 1;
+		$LAZY_IS_IP_ROBOT = 1;
+		$IS_NO_MANNER_ROBOT_IP = 1;
+	}
+}
+
+if(!$arr_get['v']) $arr_get['v']='vh';
+$arr_c_type_list = array('vh'=>'B_VD_H','ve'=>'B_VD_E','vc'=>'B_VD_C','vi'=>'B_VD_I');
+$arr_c_title_list = array('vh'=>'找医院','ve'=>'找医生','vc'=>'整容案例','vi'=>'整容攻略');
+if(!$arr_c_type_list[$arr_get['v']])
+{
+	$arr_get['v'] = "vh";
+}
+$is_del_all_cookie = 0;
+if($arr_get['d']=='all' && $arr_get['v'])
+{
+	$cookie_name = $arr_c_type_list[$arr_get['v']];
+	if($_COOKIE[$cookie_name])
+	{
+		$is_del_all_cookie = 1;
+		setcookie($cookie_name, "", 0, "/", "beauty.buyfine.net");
+		unset($_COOKIE[$cookie_name]);
+	}
+}
+
+$arr_c_type_uid = array();
+foreach($arr_c_type_list AS $c_key=>$cookie_name)
+{
+	if($_COOKIE[$cookie_name])
+	{
+		$arr_viewed_list = explode("^|",$_COOKIE[$cookie_name]);
+		if(count($arr_viewed_list) > 0)
+		{
+			$num = 0;
+			foreach($arr_viewed_list AS $temp_key=>$viewed_uid)
+			{
+				$viewed_uid = intval($viewed_uid);
+				if(!$viewed_uid) continue;
+				if($num>$B_MAX_VIEWED_NUM) continue;
+				$arr_c_type_uid[$c_key][] = $viewed_uid;
+				$num++;
+			}
+		}
+		unset($arr_viewed_list);
+	}
+}
+
+$arr_ct = array(
+	'vh'=>count($arr_c_type_uid['vh']),
+	've'=>count($arr_c_type_uid['ve']),
+	'vc'=>count($arr_c_type_uid['vc']),
+	'vi'=>count($arr_c_type_uid['vi'])
+);
+/*
+$h_c_ct = count($arr_c_type_uid['vh']);
+$e_c_ct = count($arr_c_type_uid['ve']);
+$c_c_ct = count($arr_c_type_uid['vc']);
+$f_c_ct = count($arr_c_type_uid['vi']);
+*/
+if($is_yes_print>0) 
+{
+	echo "h ct={$arr_ct['vh']}<br />";
+	echo "e ct={$arr_ct['ve']}<br />";
+	echo "c ct={$arr_ct['vc']}<br />";
+	echo "f ct={$arr_ct['vi']}<br />";
+	if($is_yes_print>1) 
+	{ 
+		echo("<pre>");print_r($arr_c_type_uid);echo("</pre>");
+	}
+}
+
+if($arr_get['v'] == 'vh')
+{
+	if($arr_ct['vh']>0) $arr_get['v']='vh';
+	else if($arr_ct['vc']>0) $arr_get['v']='vc';
+	else if($arr_ct['ve']>0) $arr_get['v']='ve';
+	else if($arr_ct['vi']>0) $arr_get['v']='vi';
+}
+else if($arr_get['v'] == 'vc')
+{
+	if($arr_ct['vc']>0) $arr_get['v']='vc';
+	else if($arr_ct['vh']>0) $arr_get['v']='vh';
+	else if($arr_ct['ve']>0) $arr_get['v']='ve';
+	else if($arr_ct['vi']>0) $arr_get['v']='vi';
+}
+else if($arr_get['v'] == 've')
+{
+	if($arr_ct['ve']>0) $arr_get['v']='ve';
+	else if($arr_ct['vh']>0) $arr_get['v']='vh';
+	else if($arr_ct['vc']>0) $arr_get['v']='vc';
+	else if($arr_ct['vi']>0) $arr_get['v']='vi';
+}
+else if($arr_get['v'] == 'vi')
+{
+	if($arr_ct['vi']>0) $arr_get['v']='vi';
+	else if($arr_ct['vh']>0) $arr_get['v']='vh';
+	else if($arr_ct['vc']>0) $arr_get['v']='vc';
+	else if($arr_ct['ve']>0) $arr_get['v']='ve';
+}
+
+$lazy_placeholder_img = $B_LAZY_BLANK_IMG;//$B_LAZY_BLANK_IMG assign verym_187_config.inc
+$no_img_uri = $B_NO_IMG;//$B_NO_IMG assign verym_187_config.inc
+$arr_query_result_row = array();
+if(count($arr_c_type_uid[$arr_get['v']]) > 0)
+{
+	$v_type = $arr_get['v'];
+	$arr_tb_info = array(
+		'vh'=>array('tb'=>'beautys_info', 'uid_fd'=>'b_uid', 'fd'=>'b_name_cn AS title, get_img_uri, img_cache_num', 'img_loc'=>'main'),
+		've'=>array('tb'=>'experts_info', 'uid_fd'=>'e_id', 'fd'=>'name AS title, get_img_uri, img_cache_num', 'img_loc'=>'expert/img'),
+		'vc'=>array('tb'=>'case_info', 'uid_fd'=>'c_uid', 'fd'=>'c_title AS title, get_img_list AS get_img_uri, img_cache_num', 'img_loc'=>'case/img'),
+		'vi'=>array('tb'=>'faq_info', 'uid_fd'=>'f_uid', 'fd'=>'f_title AS title, get_f_imgs AS get_img_uri, img_cache_num', 'img_loc'=>'faq/f_img')
+	);
+	$dbconn = dbPDOConn($bf_beauty_db,$bf_beauty_host);
+	$dbconn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	$query = "
+		SELECT 
+			{$arr_tb_info[$v_type]['uid_fd']} AS uid, {$arr_tb_info[$v_type]['fd']}
+		FROM 
+			{$bf_beauty_db}.{$arr_tb_info[$v_type]['tb']}
+		WHERE {$arr_tb_info[$v_type]['uid_fd']} IN (".implode(",",$arr_c_type_uid[$v_type]).") 
+		AND is_active>0
+	";
+	if($is_yes_print>0) $q_start_time=time();
+	$sql = $dbconn->prepare($query);
+	$sql->execute();
+	if($is_yes_print>0) get_query_runtime($q_start_time,$query);//get_query_runtime assign COMM_FUNC.inc
+	$arr_query_temp_result_row = array();
+	if(isset($sql))
+	{
+		dbPDOClose($bf_beauty_db,$bf_beauty_host);
+		$arr_query_temp_result_row = array();
+		while($row=$sql->fetch(PDO::FETCH_ASSOC))
+		{
+			$uid = $row['uid'];
+			$arr_query_temp_result_row[$uid]['uid'] = $uid;
+			$arr_query_temp_result_row[$uid]['title'] = $row['title'];
+			$folder_name = folder_position_v2($uid);
+			$file_name = sprintf("%07d",$uid);
+			if($v_type === 'vc')
+			{
+				if($row['get_img_uri'])
+				{
+					$arr_get_img_list = explode("^", $row['get_img_uri']);
+					foreach($arr_get_img_list AS $tail_img_num)
+					{
+						$img_uri = $B_IMG_ROOT_URI.$arr_tb_info[$v_type]['img_loc'].$folder_name.$file_name."_{$tail_img_num}.jpg?={$row['img_cache_num']}";//$B_IMG_ROOT_URI assign very_187_config.inc
+						if($is_robot>0 && $IS_ROBOT_BF_IMG_NO_LOAD>0)//$IS_ROBOT_BF_IMG_NO_LOAD assign COMM_FUNC.inc
+						{
+							$img_uri = $lazy_placeholder_img;
+						}
+						else if($IS_NO_MANNER_ROBOT_IP > 0)
+						{
+							$img_uri = $lazy_placeholder_img;
+						}
+						$arr_query_temp_result_row[$uid]['imgs'][] = $img_uri;
+					}
+					unset($arr_get_img_list);
+				}
+				else
+				{
+					$arr_query_temp_result_row[$uid]['imgs'][] = $no_img_uri;
+					$arr_query_temp_result_row[$uid]['imgs'][] = $no_img_uri;
+				}
+			}
+			else
+			{
+				if($row['get_img_uri'])
+				{
+					$img_uri = $B_IMG_ROOT_URI.$arr_tb_info[$v_type]['img_loc'].$folder_name.$file_name."_1.jpg?={$row['img_cache_num']}";//$B_IMG_ROOT_URI assign very_187_config.inc
+					$arr_query_temp_result_row[$uid]['imgs'][] = $img_uri;
+				}
+				else
+				{
+					$arr_query_temp_result_row[$uid]['imgs'][] = $no_img_uri;
+				}
+			}
+		}
+		$sql->closeCursor();
+		$arr_ct[$v_type] = count($arr_query_temp_result_row);
+		if($arr_ct[$v_type] > 0)
+		{
+			foreach($arr_c_type_uid[$v_type] AS $uid)//배열 순서대로 재정렬
+			{
+				$arr_query_result_row[$uid]['uid'] = $arr_query_temp_result_row[$uid]['uid'];
+				$arr_query_result_row[$uid]['title'] = $arr_query_temp_result_row[$uid]['title'];
+				$arr_query_result_row[$uid]['imgs'] = $arr_query_temp_result_row[$uid]['imgs'];
+			}
+		}
+		unset($arr_query_temp_result_row);
+	}
+	else
+	{
+		dbPDOClose($bf_beauty_db,$bf_beauty_host);
+	}
+}
+
+$is_all_null_result = 0;
+if($arr_ct['vh']<1 && $arr_ct['ve']<1 && $arr_ct['vc']<1 && $arr_ct['vi']<1)
+{
+	$is_all_null_result = 1;
+}
+$on_class_h = "";
+$on_class_e = "";
+$on_class_c = "";
+$on_class_f = "";
+if($arr_get['v']=='vh') 
+{
+	$on_class_h=" on";
+}
+else if($arr_get['v']=='vc') 
+{
+	$on_class_c=" on";
+}
+else if($arr_get['v']=='ve') 
+{
+	$on_class_e=" on";
+}
+else if($arr_get['v']=='vi') 
+{
+	$on_class_f=" on";
+}
+$tab_hide_class_h = "";
+$tab_hide_class_e = "";
+$tab_hide_class_c = "";
+$tab_hide_class_f = "";
+if($is_all_null_result > 0)
+{
+	$tab_hide_class_h = " hide";
+	$tab_hide_class_e = " hide";
+	$tab_hide_class_c = " hide";
+	$tab_hide_class_f = " hide";
+}
+else
+{
+	if($arr_ct['vh']<1) $tab_hide_class_h=" hide";
+	if($arr_ct['ve']<1) $tab_hide_class_e=" hide";
+	if($arr_ct['vc']<1) $tab_hide_class_c=" hide";
+	if($arr_ct['vi']<1) $tab_hide_class_f=" hide";
+}
+
+if($is_yes_print>0) 
+{
+	echo "arr_query_runtime=";
+	echo("<pre>");print_r($arr_query_runtime);echo("</pre>");
+	unset($arr_query_runtime);
+	if($is_yes_print>1) 
+	{
+		echo "arr_query_result_row=";
+		echo("<pre>");print_r($arr_query_result_row);echo("</pre>");
+	}
+}
+
+$CSS_FILES = array("{$CSS_HOST_URI}list.css?o={$JS_CSS_CACHE_STR}");
+$JS_FILES = array("{$JS_HOST_URI}jquery-2.1.4.min.js?o={$JS_CSS_CACHE_STR}","{$JS_HOST_URI}jquery.lazyload-1.9.3.js?o={$JS_CSS_CACHE_STR}");
+$is_need_api_js_str = 1;
+$isNoNeedCache = 1;
+$arr_get['l'] = 'v';
+$is_need_sub_menu = 0;
+$PAGE_TITLE = "足迹";
+include_once "{$_SERVER['DOCUMENT_ROOT']}/inc/header.inc";
+
+$blur_css = "";
+if($IS_IMG_BLUR_FILTER>0 || $is_robot>0)//$IS_IMG_BLUR_FILTER assign header.inc
+{
+	$blur_css = " img-blur";//img-blur assign default.css
+}
+
+$add_d_bt_class = "";
+if($is_all_null_result > 0)
+{
+	$add_d_bt_class = " none";
+}
+?>
+<div class="page-title viewed"><p class="title-back-bt a-href-link" link="mback"><span class="title-back-box">&lt;</span></p><p class="title a-href-link" link="<?=$_SERVER['PHP_SELF'];?>?v=<?=$arr_get['v'];?>">足迹</p><p><span class="d-bt<?=$add_d_bt_class;?>" type="<?=$arr_get['v'];?>" del="all" title="<?=$arr_c_title_list[$arr_get['v']];?>">全部删除</span></p></div>
+<div class="s-tab view">
+	<p class="p-tab vc<?=$on_class_c;?><?=$tab_hide_class_c;?> a-href-link" link="/viewed.html?v=vc" val="vc"><?=$arr_c_title_list['vc'];?><br /><span id="vcCTNum" value=<?=$arr_ct['vc'];?> class="num">(<?=$arr_ct['vc'];?>)</span></p>
+	<p class="p-tab vh<?=$on_class_h;?><?=$tab_hide_class_h;?> a-href-link" link="/viewed.html?v=vh" val="vh"><?=$arr_c_title_list['vh'];?><br /><span id="vhCTNum" value=<?=$arr_ct['vh'];?> class="num">(<?=$arr_ct['vh'];?>)</span></p>
+	<p class="p-tab ve<?=$on_class_e;?><?=$tab_hide_class_e;?> a-href-link" link="/viewed.html?v=ve" val="ve"><?=$arr_c_title_list['ve'];?><br /><span id="veCTNum" value=<?=$arr_ct['ve'];?> class="num">(<?=$arr_ct['ve'];?>)</span></p>
+	<p class="p-tab vi<?=$on_class_f;?><?=$tab_hide_class_f;?> a-href-link" link="/viewed.html?v=vi" val="vi"><?=$arr_c_title_list['vi'];?><br /><span id="viCTNum" value=<?=$arr_ct['vi'];?> class="num">(<?=$arr_ct['vi'];?>)</span></p>
+</div>
+<?
+unset($arr_c_title_list);
+if($is_all_null_result > 0)
+{
+	echo "<div class=\"s-result center\">没有内容</div>";
+}
+else
+{
+?>
+<div id="viewedImg" class="list-box-row">
+<?
+	//<p class=\"a-href-link\" link=\"{$arr_link_uri[$v_type]}&uid={$uid}\">
+	$v_type = $arr_get['v'];
+	$arr_link_uri = array('vh'=>'/detail.html?vd=1&l=h','ve'=>'/detail_expert.html?vd=1&l=e','vc'=>'/detail_case.html?vd=1&l=c','vi'=>'/detail_info.html?vd=1&l=i');
+	foreach($arr_query_result_row AS $uid=>$row)
+	{
+		echo "<div class=\"list-box-item\" id=\"{$v_type}_{$uid}\">
+			<div class=\"div-img\">";
+		foreach($row['imgs'] AS $img)
+		{
+			if($is_robot>0 && $IS_ROBOT_BF_IMG_NO_LOAD>0)//$IS_ROBOT_BF_IMG_NO_LOAD assign COMM_FUNC.inc
+			{
+				$img = $lazy_placeholder_img;
+			}
+			else if($IS_NO_MANNER_ROBOT_IP > 0)
+			{
+				$img = $lazy_placeholder_img;
+			}
+			echo "<p><a href=\"{$arr_link_uri[$v_type]}&uid={$uid}\" target=\"_self\"><img class=\"lazy{$blur_css}\" src=\"{$lazy_placeholder_img}\" data-original=\"{$img}\" alt=\"i_{$uid}\" /></a></p>";
+		}
+		echo "<p class=\"del-layer\"><span class=\"del-bt\" type=\"{$v_type}\" value=\"{$uid}\">删除</span></p>
+			</div>
+			<div class=\"div-txt a-href-link\" link=\"{$arr_link_uri[$v_type]}&uid={$uid}\"><p>{$row['title']}</p></div>
+		</div>";
+	}
+	unset($arr_query_result_row);
+}
+?>
+</div>
+<?
+$lazy_layer_obj = "#viewedImg img";
+include_once "{$_SERVER['DOCUMENT_ROOT']}/inc/footer.inc";
+?>

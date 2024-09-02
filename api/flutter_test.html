@@ -1,0 +1,160 @@
+<?
+if (!$IS_API_CONFIG) include_once "PUBLIC_FUNC/BUYFINE/api/config.inc";
+
+$is_yes_print = 1;
+$arr_req_data['app_key'] = '168298';
+$keyCode = $ARR_API_V2_MD5_KEY_STR[$arr_req_data['app_key']];
+$explode_str = $ARR_API_V2_EXPLODE_STR[$arr_req_data['app_key']]; //$ARR_API_V2_EXPLODE_STR assign api/config.inc
+$max_timesec_gap = $ARR_API_V2_MAX_TIMESEC_GAP[$arr_req_data['app_key']]; //$ARR_API_V2_MAX_TIMESEC_GAP assign 
+$encryptedText = '587adbd5d71c08e4de67eee89ac866ca92aae4408ce5d784d0c90bd1af847a4f^1703133397';
+
+$arr_vars = array('keyCode' => $keyCode, 'encryptedText' => $encryptedText, 'max_timesec_gap' => $max_timesec_gap, 'explode_str' => $explode_str, 'echo_print' => $is_yes_print);
+$arr_decrypt_info = decryptText($arr_vars);
+echo time();
+print_r($arr_decrypt_info);
+
+
+
+exit;
+header("Content-Type: application/json; charset=utf-8");
+//header("Cache-Control: no-cache, must-revalidate");
+header("Cache-Control: no-store, no-cache, must-revalidate");
+include_once "PUBLIC_FUNC/BUYFINE/COMM_FUNC.inc";
+include_once "PUBLIC_FUNC/BUYFINE/func_core.inc";
+
+$result_num = 1;
+$arr_req_data = array();
+if (count($_POST) > 0) {
+	foreach ($_POST as $key => $value) {
+		if ($key == 'sign_key') continue;
+		$value = @trim($value);
+		if ($value || $value == '0') {
+			$arr_req_data[$key] = $value;
+		}
+	}
+	$arr_req_data = array_map('str_filter', $arr_req_data); //str_replace
+	$arr_req_data = array_map('db_escape_string', $arr_req_data); //mysql_escape_string
+	$arr_req_data['sign_key'] = $_POST['sign_key'];
+	unset($_POST);
+}
+if (count($_GET) > 0) {
+	foreach ($_GET as $key => $value) {
+		if ($key == 'sign_key') continue;
+		$value = @trim($value);
+		if ($value || $value == '0') {
+			$arr_req_data[$key] = $value;
+		}
+	}
+	$arr_req_data = array_map('str_filter', $arr_req_data); //str_replace
+	$arr_req_data = array_map('db_escape_string', $arr_req_data); //mysql_escape_string
+	$arr_req_data['sign_key'] = $_GET['sign_key'];
+	unset($_GET);
+}
+if (!$arr_req_data['type'] || !$arr_req_data['user_email']) {
+	exit;
+}
+
+$dbconn = dbPDOConn($bf_beauty_db, $bf_beauty_host);
+$dbconn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$existEmail = false;
+$arr_result_row = array();
+if ($arr_req_data['type'] == 'check_email') {
+	$query = "
+		SELECT 
+			COUNT(*) AS exist_count
+		FROM 
+			user_table
+		WHERE user_email = '{$arr_req_data['user_email']}'
+	";
+	$sql = $dbconn->prepare($query);
+	$sql->execute();
+	if (isset($sql)) {
+		$row_cp = $sql->fetch(PDO::FETCH_ASSOC);
+		if ($row_cp['exist_count'] > 0) {
+			$result_num = -1;
+			$existEmail = true;
+		}
+		$sql->closeCursor();
+	}
+} else if ($arr_req_data['type'] == 'new') {
+	$query = "
+		SELECT 
+			COUNT(*) AS exist_count
+		FROM 
+			{$bf_beauty_db}.user_table
+		WHERE user_email = '{$arr_req_data['user_email']}'
+	";
+	$sql = $dbconn->prepare($query);
+	$sql->execute();
+	if (isset($sql)) {
+		$row_cp = $sql->fetch(PDO::FETCH_ASSOC);
+		if ($row_cp['exist_count'] > 0) {
+			$result_num = -1;
+		}
+		$sql->closeCursor();
+	}
+	if ($result_num > 0) {
+		$md5_password = md5($arr_req_data['user_password']);
+		$query = "
+			INSERT INTO 
+				{$bf_beauty_db}.user_table 
+			(user_id,user_name,user_email,user_password,regist_time) VALUES 
+			(null,'{$arr_req_data['user_name']}','{$arr_req_data['user_email']}','{$md5_password}',now())
+		";
+		$sql = $dbconn->prepare($query);
+		$sql->execute();
+		$arr_mysql_err = $sql->errorInfo();
+		$mysql_errno = (int) $arr_mysql_err['1'];
+		unset($arr_mysql_err);
+		if ($mysql_errno != '0') {
+			$arr_err_query_err[] = $mysql_errno . " : " . $query;
+			$result_num = -1;
+		} else {
+			$arr_result_row[0]['user_id'] = $dbconn->lastInsertId();
+			$arr_result_row[0]['user_name'] = $arr_req_data['user_name'];
+			$arr_result_row[0]['user_email'] = $arr_req_data['user_email'];
+			$result_num = 2;
+		}
+		$sql->closeCursor();
+	}
+} else if ($arr_req_data['type'] == 'update') {
+} else {
+	$query = "
+		SELECT 
+			user_id, user_name, user_email, user_password
+		FROM 
+			user_table
+		WHERE user_email='{$arr_req_data['user_email']}'
+	";
+	$sql = $dbconn->prepare($query);
+	$sql->execute();
+	if (isset($sql)) {
+		$row = $sql->fetch(PDO::FETCH_ASSOC);
+		if ($row['user_id'] && $arr_req_data['user_password']) {
+			$md5_password = md5($arr_req_data['user_password']);
+			if ($md5_password == $row['user_password']) {
+				$result_num = 2;
+				$arr_result_row[0]['user_id'] = $row['user_id'];
+				$arr_result_row[0]['user_name'] = $row['user_name'];
+				$arr_result_row[0]['user_email'] = $row['user_email'];
+			}
+		}
+		$sql->closeCursor();
+	}
+}
+
+dbPDOClose($bf_beauty_db, $bf_beauty_host);
+
+$success = false;
+if ($result_num > 1) $success = true;
+$arr_result = array(
+	'type' => $arr_req_data['type'],
+	'result' => $result_num,
+	'success' => $success,
+	'exist_email' => $existEmail,
+	'user_data' => $arr_result_row
+);
+
+echo json_encode($arr_result);
+unset($arr_result_row);
+unset($arr_result);

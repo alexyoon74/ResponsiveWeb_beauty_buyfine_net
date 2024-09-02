@@ -1,0 +1,1219 @@
+<?
+header("Content-Type: application/json; charset=utf-8");
+//header("Cache-Control: no-cache, must-revalidate");
+header("Cache-Control: no-store, no-cache, must-revalidate");
+if (!$IS_API_CONFIG) include_once "PUBLIC_FUNC/BUYFINE/api/config.inc";
+include_once "PUBLIC_FUNC/BUYFINE/COMM_FUNC.inc";
+include_once "PUBLIC_FUNC/BUYFINE/func_core.inc";
+if (!$IS_FUNC_EXTRA) include_once "PUBLIC_FUNC/BUYFINE/func_extra.inc";
+if (!$IS_BT_VERYM_CONFIG) include_once "PUBLIC_FUNC/BUYFINE/beauty/verym_187_config.inc";
+if (!$IS_MULTI_BYTE_INDEX_SEARCHER) include "PUBLIC_FUNC/BUYFINE/beauty/func_multi_byte_index_searcher.inc";
+
+$is_robot = 0;
+foreach ($ARR_ROBOT_STR as $robot_str) {
+	if (preg_match("/" . $robot_str . "/i", $_SERVER['HTTP_USER_AGENT'])) {
+		$is_robot = 1;
+		break;
+	} else {
+	}
+}
+foreach ($ARR_ROBOT_IP_LISTS as $robot_ip_str) // asing $USER_REMOTE_IP, $ARR_ROBOT_IP_LISTS COMM_FUNC
+{
+	if (preg_match("/" . $robot_ip_str . "/i", $USER_REMOTE_IP)) {
+		$is_robot = 1;
+		break;
+	} else {
+	}
+}
+$no_manner_ip_count = count($ARR_ROBOT_NO_MANNER_IP_LISTS); // $USER_REMOTE_IP, $ARR_ROBOT_NO_MANNER_IP_LISTS assign COMM_FUNC.inc
+if ($no_manner_ip_count > 0) {
+	if (in_array($USER_REMOTE_IP, $ARR_ROBOT_NO_MANNER_IP_LISTS)) {
+		$is_robot = 1;
+	}
+}
+if ($is_robot) exit;
+
+$alex_print = 0;
+if ($_POST['alex_print'] > 0) {
+	$alex_print = intval($_POST['alex_print']);
+} else if ($_GET['alex_print'] > 0) {
+	$alex_print = intval($_GET['alex_print']);
+}
+$is_yes_print = 0;
+if ($alex_print > 0) {
+	if ($alex_print > 0 && $_MEMBER['m_uid'] == '1') $is_yes_print = $alex_print;
+	if ($alex_print > 0 && $NO_AUTH_PRINT > 0) $is_yes_print = $alex_print; //$NO_AUTH_PRINT assign verym_187_config.inc
+}
+//$is_yes_print = 0;
+
+$is_no_err = 1;
+$result_num = 0;
+
+/*
+if($_COOKIE['BFUSERID']=='july21c@gmail.com')
+{
+	echo "post=";
+	print_r($_POST);
+}
+*/
+if (!$IS_API_PUBLIC_VARS) include_once "{$_SERVER['DOCUMENT_ROOT']}/api/_public_var.inc"; //return $arr_req_data, $is_no_err
+/*
+if($_COOKIE['BFUSERID']=='july21c@gmail.com')
+{
+	echo "arr_req_data=";
+	print_r($arr_req_data);
+}
+*/
+$p_uid = 0;
+$e_uid = 0;
+$paging_type = "";
+$paging_cursor = 0;
+$sort_cursor = 0;
+$paging_limit = 10;
+$ca_parent_uid = 0;
+if ($arr_req_data['p_uid']) {
+	$p_uid = intval($arr_req_data['p_uid']);
+}
+if ($arr_req_data['e_uid']) {
+	$e_uid = intval($arr_req_data['e_uid']);
+}
+if ($arr_req_data['ca']) {
+	$arr_req_data['ca'] = intval($arr_req_data['ca']);
+	if ($ARR_B_CA_1_STR[$arr_req_data['ca']]) //$ARR_B_CA_1_STR assign verym_187_config.inc
+	{
+		$ca_parent_uid = $arr_req_data['ca'];
+	}
+}
+if ($arr_req_data['type']) {
+	$paging_type = $arr_req_data['type'];
+}
+if ($arr_req_data['cursor']) {
+	$paging_cursor = intval($arr_req_data['cursor']);
+}
+if ($arr_req_data['s_cur']) {
+	$sort_cursor = intval($arr_req_data['s_cur']);
+}
+if ($arr_req_data['limit']) {
+	$paging_limit = intval($arr_req_data['limit']);
+}
+if ($is_no_err > 0 && !$paging_type) {
+	$is_no_err = 0;
+	$result_num = 0;
+}
+
+/* test var start */
+/*
+$paging_cursor = 7;
+$sort_cursor = 20;
+$is_yes_print = 1;
+*/
+//$is_yes_print = 1;
+/* test var end */
+if ($is_yes_print > 0) {
+	$arr_query_runtime = array();
+	$query_runtime_idx = 0;
+	//echo "REMOTE_ADDR=".$_SERVER['REMOTE_ADDR']."<br />";
+}
+
+$lazy_placeholder_img = $B_LAZY_BLANK_IMG; //$B_LAZY_BLANK_IMG assign verym_187_config.inc
+$no_img_uri = $B_NO_IMG; //$B_NO_IMG assign verym_187_config.inc
+$last_cursor = $paging_cursor;
+$last_sort_cursor = $sort_cursor;
+$t_record = 0;
+$is_need_query = 0;
+//if ($is_no_err > 0 && $paging_cursor > 0 && $paging_type) {
+if ($is_no_err > 0 && $paging_type) {
+	$is_need_query = 1;
+}
+if ($is_no_err > 0 && $p_uid > 0 && $paging_type) {
+	$is_need_query = 1;
+}
+if ($is_no_err > 0 && $e_uid > 0 && $paging_type) {
+	$is_need_query = 1;
+}
+$arr_search_uid = array();
+if ($is_no_err > 0 && count($arr_req_data['arr_uid']) > 0 && $paging_type) {
+	$num = 0;
+	foreach ($arr_req_data['arr_uid'] as $temp_uid) {
+		$temp_uid = intval($temp_uid);
+		if ($temp_uid > 0 && $num < $paging_limit) {
+			$arr_search_uid[] = $temp_uid;
+		}
+		$num++;
+	}
+	if (count($arr_search_uid) > 0) {
+		$is_need_query = 1;
+	}
+}
+if ($is_need_query > 0) {
+	$result_num = 1;
+	$dbconn = dbPDOConn($bf_beauty_db, $bf_beauty_host);
+	$dbconn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	if (count($arr_search_uid) > 0 && ($paging_type === 'sh' || $paging_type === 'se' || $paging_type === 'sc' || $paging_type === 'si')) {
+		$arr_s_type = array('sh' => 'h', 'se' => 'e', 'sc' => 'c', 'si' => 'f');
+		$s_type = $arr_s_type[$paging_type];
+		$in_uid = implode(",", $arr_search_uid);
+		//$ARR_SEARCH_TYPE_INFO assign verym_187_config.inc
+		$fd1_str = $ARR_SEARCH_TYPE_INFO[$s_type]['arr_tb']['fd1'];
+		if ($paging_type === 'sh') {
+			$fd1_str = str_replace(", S1.b_name_kr AS s1_str_2", "", $fd1_str);
+			$fd1_str = $fd1_str . ", S1.get_img_uri, S1.img_cache_num";
+			$img_m_loc = "main";
+		} else if ($paging_type === 'se') {
+			$fd1_str = $fd1_str . ", S1.get_img_uri, S1.img_cache_num";
+			$img_m_loc = "expert/img";
+		} else if ($paging_type === 'sc') {
+			$fd1_str = $fd1_str . ", S1.get_img_list AS get_img_uri, S1.img_cache_num";
+			$img_m_loc = "case/img";
+		} else if ($paging_type === 'si') {
+			$fd1_str = $fd1_str . ", S1.get_f_imgs AS get_img_uri, S1.img_cache_num";
+			$img_m_loc = "faq/f_img";
+		}
+		$query = "
+			SELECT 
+				S1.{$ARR_SEARCH_TYPE_INFO[$s_type]['arr_tb']['uid_fd']} AS uid, {$fd1_str},
+				{$ARR_SEARCH_TYPE_INFO[$s_type]['arr_tb']['fd2']}
+			FROM 
+				{$bf_beauty_db}.{$ARR_SEARCH_TYPE_INFO[$s_type]['arr_tb']['tb1']}, {$bf_beauty_db}.{$ARR_SEARCH_TYPE_INFO[$s_type]['arr_tb']['tb2']}
+			WHERE S1.{$ARR_SEARCH_TYPE_INFO[$s_type]['arr_tb']['uid_fd']}=S2.{$ARR_SEARCH_TYPE_INFO[$s_type]['arr_tb']['uid_fd']}
+			AND S1.{$ARR_SEARCH_TYPE_INFO[$s_type]['arr_tb']['uid_fd']} IN ({$in_uid})
+			AND S1.is_active>0
+		";
+		if ($_COOKIE['BFUSERID'] == 'july21c@gmail.com') {
+			//echo $query;
+		}
+		if ($is_yes_print > 0) $q_start_time = time();
+		$sql = $dbconn->prepare($query);
+		unset($in_uid);
+		$sql->execute();
+		if ($is_yes_print > 0) get_query_runtime($q_start_time, $query); //get_query_runtime assign COMM_FUNC.inc
+		$arr_query_temp_result_row = array();
+		if (isset($sql)) {
+			while ($row = $sql->fetch(PDO::FETCH_ASSOC)) {
+				$uid = $row['uid'];
+				$arr_query_temp_result_row[$uid]['uid'] = $uid;
+
+				$folder_name = folder_position_v2($uid);
+				$file_name = sprintf("%07d", $uid);
+				if ($paging_type === 'sc') {
+					if ($row['get_img_uri']) {
+						$arr_get_img_list = explode("^", $row['get_img_uri']);
+						foreach ($arr_get_img_list as $tail_img_num) {
+							$img_uri = $B_IMG_ROOT_URI . $img_m_loc . $folder_name . $file_name . "_{$tail_img_num}.jpg?o={$row['img_cache_num']}"; //$B_IMG_ROOT_URI assign very_187_config.inc
+							if ($is_robot > 0 && $IS_ROBOT_BF_IMG_NO_LOAD > 0) //$IS_ROBOT_BF_IMG_NO_LOAD assign COMM_FUNC.inc
+							{
+								$img_uri = $lazy_placeholder_img;
+							} else if ($IS_NO_MANNER_ROBOT_IP > 0) {
+								$img_uri = $lazy_placeholder_img;
+							}
+							$arr_query_temp_result_row[$uid]['imgs'][] = $img_uri;
+						}
+						unset($arr_get_img_list);
+					} else {
+						$arr_query_temp_result_row[$uid]['imgs'][] = $no_img_uri;
+						$arr_query_temp_result_row[$uid]['imgs'][] = $no_img_uri;
+					}
+					if ($is_robot > 0 && $IS_ROBOT_BF_IMG_NO_LOAD > 0) //$IS_ROBOT_BF_IMG_NO_LOAD assign COMM_FUNC.inc
+					{
+						$arr_query_temp_result_row[$uid]['imgs'][] = $lazy_placeholder_img;
+						$arr_query_temp_result_row[$uid]['imgs'][] = $lazy_placeholder_img;
+					} else if ($IS_NO_MANNER_ROBOT_IP > 0) {
+						$arr_query_temp_result_row[$uid]['imgs'][] = $lazy_placeholder_img;
+						$arr_query_temp_result_row[$uid]['imgs'][] = $lazy_placeholder_img;
+					}
+				} else {
+					if ($row['get_img_uri']) {
+						$img_uri = $B_IMG_ROOT_URI . $img_m_loc . $folder_name . $file_name . "_1.jpg?o={$row['img_cache_num']}"; //$B_IMG_ROOT_URI assign very_187_config.inc
+						$arr_query_temp_result_row[$uid]['imgs'][] = $img_uri;
+					} else {
+						$arr_query_temp_result_row[$uid]['imgs'][] = $no_img_uri;
+					}
+					if ($is_robot > 0 && $IS_ROBOT_BF_IMG_NO_LOAD > 0) //$IS_ROBOT_BF_IMG_NO_LOAD assign COMM_FUNC.inc
+					{
+						$arr_query_temp_result_row[$uid]['imgs'][] = $lazy_placeholder_img;
+					} else if ($IS_NO_MANNER_ROBOT_IP > 0) {
+						$arr_query_temp_result_row[$uid]['imgs'][] = $lazy_placeholder_img;
+					}
+				}
+				$arr_keyword = array();
+				if ($row['s1_str_11']) //s1_str_11=doctor_info=/zhuanjia/7053.html^|安炳俊
+				{
+					$arr_temp = explode("^|", $row['s1_str_11']);
+					if (count($arr_temp) > 1) {
+						$arr_keyword[] = $arr_temp['1'];
+					}
+					unset($arr_temp);
+				}
+				if ($row['s1_str_2']) $arr_keyword[] = $row['s1_str_2'];
+				if ($row['s1_str_3']) $arr_keyword[] = $row['s1_str_3'];
+				if ($row['s1_str_4']) $arr_keyword[] = $row['s1_str_4'];
+				if ($row['s1_str_5']) $arr_keyword[] = $row['s1_str_5'];
+				if ($row['s2_str_1']) {
+					$arr_vars = array(
+						'loc' => $s_type,
+						'pt' => '',
+						'uid' => $uid,
+						'is_robot' => 0,
+						'blur_css_1' => '',
+						'blur_css_2' => '',
+						'info' => $row['s2_str_1'],
+						'img_list' => '',
+						'is_need_only_txt' => 1
+					);
+					$arr_content = in_func_info_to_html($arr_vars);
+					foreach ($arr_content as $content) {
+						$arr_keyword[] = $content;
+						unset($content);
+					}
+					unset($arr_vars);
+					unset($arr_content);
+				}
+				$is_already_replace = 0;
+				$txt_str_max_num = 150;
+				if (count($arr_keyword) > 0) {
+					$keyword_str = implode(" ", $arr_keyword);
+					$keyword_str = preg_replace("/\s+/", " ", $keyword_str);
+					$keyword_str = @trim($keyword_str);
+					if ($keyword_str) {
+						$arr_vars = array(
+							'keyword_str' => $keyword_str,
+							's_word' => $arr_req_data['s_word'],
+							'arr_s_word' => $arr_req_data['arr_s_word'],
+							'color_css' => 's-word',
+							'is_need_sub_str' => 1
+						);
+						$keyword_str = searched_str_color_replace($arr_vars); //searched_str_color_replace assign func_multi_byte_index_searcher.inc
+						unset($arr_vars);
+						$arr_query_temp_result_row[$uid]['txt'] = $keyword_str;
+					}
+					unset($keyword_str);
+				}
+				unset($arr_keyword);
+				$title_str = $row['s1_str_1'];
+				$arr_vars = array(
+					'keyword_str' => $title_str,
+					's_word' => $arr_req_data['s_word'],
+					'arr_s_word' => $arr_req_data['arr_s_word'],
+					'color_css' => 's-word',
+					'is_need_sub_str' => 0
+				);
+				$title_str = searched_str_color_replace($arr_vars); //searched_str_color_replace assign func_multi_byte_index_searcher.inc
+				unset($arr_vars);
+				$arr_query_temp_result_row[$uid]['tit'] = $title_str;
+			}
+			$sql->closeCursor();
+		}
+		if ($_COOKIE['BFUSERID'] == 'july21c@gmail.com') {
+			/*
+echo "arr_query_temp_result_row=";
+			print_r($arr_query_temp_result_row);
+			echo "arr_search_uid=";
+			print_r($arr_search_uid);
+*/
+		}
+		$t_record = count($arr_query_temp_result_row);
+		$arr_query_result_row = array();
+		$idx = 0;
+		if ($t_record > 0) {
+			foreach ($arr_search_uid as $uid) //post로 넘어온 순서대로 재정렬
+			{
+				$arr_query_result_row[$idx]['uid'] = $arr_query_temp_result_row[$uid]['uid'];
+				$arr_query_result_row[$idx]['tit'] = $arr_query_temp_result_row[$uid]['tit'];
+				$arr_query_result_row[$idx]['txt'] = $arr_query_temp_result_row[$uid]['txt'];
+				$arr_query_result_row[$idx]['imgs'] = $arr_query_temp_result_row[$uid]['imgs'];
+				$idx++;
+			}
+		}
+		unset($arr_query_temp_result_row);
+		unset($arr_search_uid);
+	} else if ($paging_type === 'h') {
+		$join_tb = "";
+		$join_where = "1";
+		$join_str_and = "";
+		$join_group_by = "";
+		if ($ca_parent_uid > 0) {
+			$join_tb = ", {$bf_beauty_db}.medical_items_beautys MIB";
+			$join_where = "BI.b_uid=MIB.b_uid";
+			$join_str_and = "AND MIB.parent_uid=:bind5";
+			$join_group_by = "GROUP BY BI.b_uid";
+		}
+		if ($last_sort_cursor >= $DEFAULT_P_SORT_NUM) //$DEFAULT_P_SORT_NUM assign verym_187_config.inc
+		{
+			$q_type = 1;
+			$query = "
+				SELECT 
+					BI.b_uid, BI.p_sort_num, BI.b_name_cn, BI.b_name_kr, BI.get_img_uri, BI.img_cache_num, BI.medical_items
+				FROM 
+					{$bf_beauty_db}.beautys_info BI{$join_tb}
+				WHERE {$join_where}
+				AND BI.b_uid>:bind1
+				AND BI.p_sort_num>={$DEFAULT_P_SORT_NUM}
+				AND BI.is_active=2
+				{$join_str_and}
+				{$join_group_by}
+				ORDER BY BI.b_uid ASC
+				LIMIT {$paging_limit}
+			";
+		} else {
+			$q_type = 2;
+			$query = "
+				SELECT 
+					BI.b_uid, BI.p_sort_num, BI.b_name_cn, BI.b_name_kr, BI.get_img_uri, BI.img_cache_num, BI.medical_items
+				FROM 
+					{$bf_beauty_db}.beautys_info BI{$join_tb}
+				WHERE {$join_where}
+				AND BI.p_sort_num>:bind1
+				AND BI.p_sort_num<{$DEFAULT_P_SORT_NUM}
+				AND BI.is_active=2
+				{$join_str_and}
+				{$join_group_by}
+				ORDER BY BI.p_sort_num ASC
+				LIMIT {$paging_limit}
+			";
+		}
+		if ($is_yes_print > 0) $q_start_time = time();
+		$sql = $dbconn->prepare($query);
+		if ($q_type == 1) {
+			$sql->bindValue(":bind1", $paging_cursor, PDO::PARAM_INT); //PARAM_STR
+			//$sql->bindParam(":bind1", $paging_cursor);
+		} else {
+			$sql->bindValue(":bind1", $sort_cursor, PDO::PARAM_INT);
+			//$sql->bindParam(":bind1", $sort_cursor);
+		}
+		if ($ca_parent_uid > 0 && $join_str_and) {
+			$sql->bindValue(":bind5", $ca_parent_uid, PDO::PARAM_INT);
+			//$sql->bindParam(":bind5", $ca_parent_uid);
+		}
+		$sql->execute();
+		if ($is_yes_print > 0) get_query_runtime($q_start_time, $query); //get_query_runtime assign COMM_FUNC.inc
+		$arr_query_temp_result_row = array();
+		$arr_query_result_row = array();
+		$arr_b_uid = array();
+		if (isset($sql)) {
+			while ($row = $sql->fetch(PDO::FETCH_ASSOC)) {
+				$b_uid = $row['b_uid'];
+				$arr_b_uid[] = $b_uid;
+				$last_cursor = $b_uid;
+				$last_sort_cursor = $row['p_sort_num'];
+				$arr_query_temp_result_row[$b_uid] = $row;
+			}
+			$sql->closeCursor();
+		}
+		$ct_row = count($arr_b_uid);
+		if ($ct_row < $paging_limit && $last_sort_cursor < $DEFAULT_P_SORT_NUM) //$paging_limit보다 작게 나오고 기본정렬값보다 작으면 기본정렬값 기준대로 한번더 쿼리한다.
+		{
+			$re_limit_num = $paging_limit - $ct_row;
+			$query = "
+				SELECT 
+					BI.b_uid, BI.p_sort_num, BI.b_name_cn, BI.b_name_kr, BI.get_img_uri, BI.img_cache_num, BI.medical_items
+				FROM 
+					{$bf_beauty_db}.beautys_info BI{$join_tb}
+				WHERE {$join_where} 
+				AND BI.p_sort_num>={$DEFAULT_P_SORT_NUM}
+				AND BI.is_active=2
+				{$join_str_and}
+				{$join_group_by}
+				ORDER BY BI.b_uid ASC
+				LIMIT {$re_limit_num}
+			";
+			if ($is_yes_print > 0) $q_start_time = time();
+			$sql = $dbconn->prepare($query);
+			if ($ca_parent_uid > 0 && $join_str_and) {
+				$sql->bindValue(":bind5", $ca_parent_uid, PDO::PARAM_INT);
+				//$sql->bindParam(":bind5", $ca_parent_uid);
+			}
+			$sql->execute();
+			if ($is_yes_print > 0) get_query_runtime($q_start_time, $query); //get_query_runtime assign COMM_FUNC.inc
+			if (isset($sql)) {
+				while ($row = $sql->fetch(PDO::FETCH_ASSOC)) {
+					$b_uid = $row['b_uid'];
+					$arr_b_uid[] = $b_uid;
+					$last_cursor = $b_uid;
+					$last_sort_cursor = $row['p_sort_num'];
+					$arr_query_temp_result_row[$b_uid] = $row;
+				}
+				$sql->closeCursor();
+			}
+		}
+		foreach ($arr_query_temp_result_row as $b_uid => $row) {
+			$str_idx = "u" . $b_uid; //크로브라우저에서는 Response시 json같은 오브젝트형은 자체 최적화를위해 키값이 숫자형인것은 자동으로 올림차순으로 처리되기 때문에 원하는 순서로 되자않아 숫자형을 스트링형으로 변경함
+			$arr_query_result_row[$str_idx]['uid'] = $b_uid;
+			$arr_query_result_row[$str_idx]['cn'] = $row['b_name_cn'];
+			$arr_query_result_row[$str_idx]['kr'] = $row['b_name_kr'];
+			if ($row['get_img_uri']) {
+				$folder_name = folder_position_v2($b_uid);
+				$file_name = sprintf("%07d", $b_uid);
+				$main_img_uri = $B_IMG_ROOT_URI . "main" . $folder_name . $file_name . "_1.jpg?o={$row['img_cache_num']}"; //$B_IMG_ROOT_URI assign very_187_config.inc
+			} else {
+				$main_img_uri = $no_img_uri;
+			}
+			if ($is_robot > 0 && $IS_ROBOT_BF_IMG_NO_LOAD > 0) //$IS_ROBOT_BF_IMG_NO_LOAD assign COMM_FUNC.inc
+			{
+				$main_img_uri = $lazy_placeholder_img;
+			} else if ($IS_NO_MANNER_ROBOT_IP > 0) {
+				$main_img_uri = $lazy_placeholder_img;
+			}
+			$arr_query_result_row[$str_idx]['img'] = $main_img_uri;
+			$arr_query_result_row[$str_idx]['items'] = $row['medical_items'];
+		}
+		unset($arr_query_temp_result_row);
+		$t_record = count($arr_b_uid);
+		if ($t_record > 0) {
+			$in_b_uid = implode(",", $arr_b_uid);
+			unset($arr_b_uid);
+			$query = "
+				SELECT 
+					EI.e_id, EI.b_uid, EI.name, EI.get_img_uri, EI.img_cache_num
+				FROM 
+					{$bf_beauty_db}.experts_info EI
+				WHERE EI.b_uid IN ({$in_b_uid})
+				AND EI.is_active=2
+				ORDER BY EI.sort_num ASC, EI.e_id ASC
+			";
+			if ($is_yes_print > 0) $q_start_time = time();
+			$sql = $dbconn->prepare($query);
+			$sql->execute();
+			if ($is_yes_print > 0) get_query_runtime($q_start_time, $query); //get_query_runtime assign COMM_FUNC.inc
+			if (isset($sql)) {
+				while ($row = $sql->fetch(PDO::FETCH_ASSOC)) {
+					$b_uid = $row['b_uid'];
+					$str_idx = "u" . $b_uid; //크로브라우저에서는 Response시 json같은 오브젝트형은 자체 최적화를위해 키값이 숫자형인것은 자동으로 올림차순으로 처리되기 때문에 원하는 순서로 되자않아 숫자형을 스트링형으로 변경함
+					if ($row['get_img_uri'] && count($arr_query_result_row[$str_idx]['ex']) < 2) {
+						$folder_name = folder_position_v2($row['e_id']);
+						$file_name = sprintf("%07d", $row['e_id']);
+						$doctor_img_uri = $B_IMG_ROOT_URI . "expert/img" . $folder_name . $file_name . "_1.jpg?o={$row['img_cache_num']}"; //$B_IMG_ROOT_URI assign very_187_config.inc
+						if ($is_robot > 0 && $IS_ROBOT_BF_IMG_NO_LOAD > 0) //$IS_ROBOT_BF_IMG_NO_LOAD assign COMM_FUNC.inc
+						{
+							$doctor_img_uri = $lazy_placeholder_img;
+						} else if ($IS_NO_MANNER_ROBOT_IP > 0) {
+							$doctor_img_uri = $lazy_placeholder_img;
+						}
+						$arr_query_result_row[$str_idx]['ex'][$row['e_id']]['name'] = $row['name'];
+						$arr_query_result_row[$str_idx]['ex'][$row['e_id']]['img'] = $doctor_img_uri;
+					}
+				}
+				$sql->closeCursor();
+			}
+			$case_join_tb = "";
+			$case_join_where = "1";
+			$case_join_str_and = "";
+			$case_join_group_by = "";
+			if ($ca_parent_uid > 0) {
+				$case_join_tb = ", {$bf_beauty_db}.medical_items_case MIC";
+				$case_join_where = "CI.c_uid=MIC.c_uid";
+				$case_join_str_and = "AND MIC.parent_uid={$ca_parent_uid}";
+				$case_join_group_by = "GROUP BY CI.c_uid";
+			}
+			$query = "
+				SELECT 
+					CI.c_uid, CI.b_uid, CI.c_title, CI.get_img_list, CI.img_cache_num
+				FROM 
+					{$bf_beauty_db}.case_info CI{$case_join_tb}
+				WHERE {$case_join_where}
+				AND CI.b_uid IN ({$in_b_uid})
+				AND CI.is_active=2
+				{$case_join_str_and}
+				{$case_join_group_by}
+				ORDER BY CI.sort_num ASC, CI.b_uid ASC
+			";
+			if ($is_yes_print > 0) $q_start_time = time();
+			$sql = $dbconn->prepare($query);
+			$sql->execute();
+			if ($is_yes_print > 0) get_query_runtime($q_start_time, $query); //get_query_runtime assign COMM_FUNC.inc
+			if (isset($sql)) {
+				while ($row = $sql->fetch(PDO::FETCH_ASSOC)) {
+					$b_uid = $row['b_uid'];
+					$str_idx = "u" . $b_uid; //크로브라우저에서는 Response시 json같은 오브젝트형은 자체 최적화를위해 키값이 숫자형인것은 자동으로 올림차순으로 처리되기 때문에 원하는 순서로 되자않아 숫자형을 스트링형으로 변경함					
+					if ($row['get_img_list'] && count($arr_query_result_row[$str_idx]['case']) < 1) {
+						$arr_query_result_row[$str_idx]['case'][$row['c_uid']]['title'] = $row['c_title'];
+						$folder_name = folder_position_v2($row['c_uid']);
+						$file_name = sprintf("%07d", $row['c_uid']);
+						$arr_get_img_list = explode("^", $row['get_img_list']);
+						foreach ($arr_get_img_list as $tail_img_num) {
+							$case_img_uri = $B_IMG_ROOT_URI . "case/img" . $folder_name . $file_name . "_{$tail_img_num}.jpg?o={$row['img_cache_num']}"; //$B_IMG_ROOT_URI assign very_187_config.inc
+							if ($is_robot > 0 && $IS_ROBOT_BF_IMG_NO_LOAD > 0) //$IS_ROBOT_BF_IMG_NO_LOAD assign COMM_FUNC.inc
+							{
+								$case_img_uri = $lazy_placeholder_img;
+							} else if ($IS_NO_MANNER_ROBOT_IP > 0) {
+								$case_img_uri = $lazy_placeholder_img;
+							}
+							$arr_query_result_row[$str_idx]['case'][$row['c_uid']]['imgs'][] = $case_img_uri;
+						}
+						unset($arr_get_img_list);
+					}
+				}
+				$sql->closeCursor();
+			}
+		}
+	} else if ($paging_type === 'e' || $paging_type === 'de') {
+		$and_cursor_str = "AND EI.e_id>{$paging_cursor}";
+		$and_b_uid_str = "";
+		$sort_str = "ORDER BY EI.p_sort_num ASC";
+		if ($p_uid > 0 && $paging_type === 'de') {
+			$sort_str = "ORDER BY EI.sort_num ASC";
+			if ($paging_cursor > 0) {
+				$and_cursor_str = "AND EI.sort_num>{$paging_cursor}";
+			} else {
+				$and_cursor_str = "";
+			}
+			$and_b_uid_str = "AND BI.b_uid={$p_uid}";
+		}
+		$join_tb = "";
+		$join_and = "";
+		$join_str_and = "";
+		$join_group_by = "";
+		if ($ca_parent_uid > 0) {
+			$join_tb = ", {$bf_beauty_db}.medical_items_experts MIE";
+			$join_and = "AND EI.e_id=MIE.e_id";
+			$join_str_and = "AND MIE.parent_uid={$ca_parent_uid}";
+			$join_group_by = "GROUP BY EI.e_id";
+		}
+		if ($last_sort_cursor >= $DEFAULT_P_SORT_NUM) //$DEFAULT_P_SORT_NUM assign verym_187_config.inc
+		{
+			if ($paging_type === 'e') {
+				$sort_str = "ORDER BY EI.e_id ASC";
+			}
+			$query = "
+				SELECT 
+					BI.b_uid, BI.b_name_cn,
+					EI.e_id, EI.p_sort_num, EI.sort_num, EI.name, EI.position, EI.major_specialty, EI.get_img_uri, EI.img_cache_num
+				FROM 
+					{$bf_beauty_db}.beautys_info BI, {$bf_beauty_db}.experts_info EI{$join_tb}
+				WHERE BI.b_uid=EI.b_uid
+				{$join_and}
+				{$and_b_uid_str}
+				{$and_cursor_str}
+				AND EI.p_sort_num>={$DEFAULT_P_SORT_NUM}
+				AND EI.is_active=2
+				{$join_str_and}
+				{$join_group_by}
+				{$sort_str}
+				LIMIT {$paging_limit}
+			";
+		} else {
+			$query = "
+				SELECT 
+					BI.b_uid, BI.b_name_cn,
+					EI.e_id, EI.p_sort_num, EI.sort_num, EI.name, EI.position, EI.major_specialty, EI.get_img_uri, EI.img_cache_num
+				FROM 
+					{$bf_beauty_db}.beautys_info BI, {$bf_beauty_db}.experts_info EI{$join_tb}
+				WHERE BI.b_uid=EI.b_uid
+				{$join_and}
+				{$and_b_uid_str}
+				AND EI.p_sort_num>{$sort_cursor}
+				AND EI.p_sort_num<{$DEFAULT_P_SORT_NUM}
+				AND EI.is_active=2
+				{$join_str_and}
+				{$join_group_by}
+				{$sort_str}
+				LIMIT {$paging_limit}
+			";
+		}
+		if ($is_yes_print > 0) $q_start_time = time();
+		$sql = $dbconn->prepare($query);
+		$sql->execute();
+		if ($is_yes_print > 0) get_query_runtime($q_start_time, $query); //get_query_runtime assign COMM_FUNC.inc
+		$arr_query_temp_result_row = array();
+		$arr_query_result_row = array();
+		$arr_uid = array();
+		if (isset($sql)) {
+			while ($row = $sql->fetch(PDO::FETCH_ASSOC)) {
+				$uid = $row['e_id'];
+				$arr_uid[] = $uid;
+				if ($paging_type === 'de') {
+					$last_cursor = $row['sort_num'];
+				} else {
+					$last_cursor = $uid;
+				}
+				$last_sort_cursor = $row['p_sort_num'];
+				$arr_query_temp_result_row[$uid] = $row;
+			}
+			$sql->closeCursor();
+		}
+		$ct_row = count($arr_uid);
+		if ($ct_row < $paging_limit && $last_sort_cursor < $DEFAULT_P_SORT_NUM) //$paging_limit보다 작게 나오고 기본정렬값보다 작으면 기본정렬값 기준대로 한번더 쿼리한다.
+		{
+			if ($paging_type === 'e') {
+				$sort_str = "ORDER BY EI.e_id ASC";
+			}
+			$re_limit_num = $paging_limit - $ct_row;
+			$query = "
+				SELECT 
+					BI.b_uid, BI.b_name_cn,
+					EI.e_id, EI.p_sort_num, EI.sort_num, EI.name, EI.position, EI.major_specialty, EI.get_img_uri, EI.img_cache_num
+				FROM 
+					{$bf_beauty_db}.beautys_info BI, {$bf_beauty_db}.experts_info EI{$join_tb}
+				WHERE BI.b_uid=EI.b_uid
+				{$join_and}
+				{$and_b_uid_str}
+				AND EI.p_sort_num>={$DEFAULT_P_SORT_NUM}
+				AND EI.is_active=2
+				{$join_str_and}
+				{$join_group_by}
+				{$sort_str}
+				LIMIT {$re_limit_num}
+			";
+			if ($is_yes_print > 0) $q_start_time = time();
+			$sql = $dbconn->prepare($query);
+			$sql->execute();
+			if ($is_yes_print > 0) get_query_runtime($q_start_time, $query); //get_query_runtime assign COMM_FUNC.inc
+			if (isset($sql)) {
+				while ($row = $sql->fetch(PDO::FETCH_ASSOC)) {
+					$uid = $row['e_id'];
+					$arr_uid[] = $uid;
+					if ($paging_type === 'de') {
+						$last_cursor = $row['sort_num'];
+					} else {
+						$last_cursor = $uid;
+					}
+					$last_sort_cursor = $row['p_sort_num'];
+					$arr_query_temp_result_row[$uid] = $row;
+				}
+				$sql->closeCursor();
+			}
+		}
+		foreach ($arr_query_temp_result_row as $uid => $row) {
+			$str_idx = "u" . $uid; //크로브라우저에서는 Response시 json같은 오브젝트형은 자체 최적화를위해 키값이 숫자형인것은 자동으로 올림차순으로 처리되기 때문에 원하는 순서로 되자않아 숫자형을 스트링형으로 변경함
+			$arr_query_result_row[$str_idx]['uid'] = $uid;
+			$arr_query_result_row[$str_idx]['s_cur'] = $row['p_sort_num'];
+			$arr_query_result_row[$str_idx]['name'] = $row['name'];
+			$arr_query_result_row[$str_idx]['cn'] = $row['b_name_cn'];
+			$arr_query_result_row[$str_idx]['pos'] = $row['position'];
+			$arr_query_result_row[$str_idx]['items'] = $row['major_specialty'];
+			if ($row['get_img_uri']) {
+				$folder_name = folder_position_v2($uid);
+				$file_name = sprintf("%07d", $uid);
+				$img_uri = $B_IMG_ROOT_URI . "expert/img" . $folder_name . $file_name . "_1.jpg?o={$row['img_cache_num']}"; //$B_IMG_ROOT_URI assign very_187_config.inc
+			} else {
+				$img_uri = $no_img_uri;
+			}
+			if ($is_robot > 0 && $IS_ROBOT_BF_IMG_NO_LOAD > 0) //$IS_ROBOT_BF_IMG_NO_LOAD assign COMM_FUNC.inc
+			{
+				$img_uri = $lazy_placeholder_img;
+			} else if ($IS_NO_MANNER_ROBOT_IP > 0) {
+				$img_uri = $lazy_placeholder_img;
+			}
+			$arr_query_result_row[$str_idx]['img'] = $img_uri;
+		}
+		unset($arr_query_temp_result_row);
+		$t_record = count($arr_uid);
+		if ($t_record > 0 && $paging_type === 'e') {
+			$in_uid = implode(",", $arr_uid);
+			unset($arr_uid);
+			$case_join_tb = "";
+			$case_join_and = "";
+			$case_join_str_and = "";
+			$case_join_group_by = "";
+			if ($ca_parent_uid > 0) {
+				$case_join_tb = ", {$bf_beauty_db}.medical_items_case MIC";
+				$case_join_and = "AND CI.c_uid=MIC.c_uid";
+				$case_join_str_and = "AND MIC.parent_uid={$ca_parent_uid}";
+				$case_join_group_by = "GROUP BY CI.c_uid";
+			}
+			$query = "
+				SELECT 
+					EC.e_id,
+					CI.c_uid, CI.c_title, CI.price_info, CI.related_items, CI.get_img_list, CI.img_cache_num
+				FROM 
+					{$bf_beauty_db}.experts_case EC, {$bf_beauty_db}.case_info CI{$case_join_tb}
+				WHERE EC.c_uid=CI.c_uid 
+				{$case_join_and}
+				AND EC.e_id IN ({$in_uid})
+				AND CI.is_active=2
+				{$case_join_str_and}
+				{$case_join_group_by}
+				ORDER BY EC.e_id ASC, CI.sort_num ASC
+			";
+			if ($is_yes_print > 0) $q_start_time = time();
+			$sql = $dbconn->prepare($query);
+			$sql->execute();
+			if ($is_yes_print > 0) get_query_runtime($q_start_time, $query); //get_query_runtime assign COMM_FUNC.inc
+			if (isset($sql)) {
+				while ($row = $sql->fetch(PDO::FETCH_ASSOC)) {
+					$uid = $row['e_id'];
+					$str_idx = "u" . $uid; //크로브라우저에서는 Response시 json같은 오브젝트형은 자체 최적화를위해 키값이 숫자형인것은 자동으로 올림차순으로 처리되기 때문에 원하는 순서로 되자않아 숫자형을 스트링형으로 변경함
+					if ($row['get_img_list'] && count($arr_query_result_row[$str_idx]['case']) < 1) {
+						$arr_query_result_row[$str_idx]['case'][$row['c_uid']]['title'] = $row['c_title'];
+						$arr_txt = array();
+						if ($row['price_info']) {
+							$arr_txt[] = $row['price_info'];
+						}
+						if ($row['related_items']) {
+							$arr_txt[] = $row['related_items'];
+						}
+						$txt_html = "";
+						if (count($arr_txt) > 0) {
+							$txt_html = implode("<br />", $arr_txt);
+						}
+						unset($arr_txt);
+						$arr_query_result_row[$str_idx]['case'][$row['c_uid']]['txt'] = $txt_html;
+						$folder_name = folder_position_v2($row['c_uid']);
+						$file_name = sprintf("%07d", $row['c_uid']);
+						$arr_get_img_list = explode("^", $row['get_img_list']);
+						foreach ($arr_get_img_list as $tail_img_num) {
+							$case_img_uri = $B_IMG_ROOT_URI . "case/img" . $folder_name . $file_name . "_{$tail_img_num}.jpg?o={$row['img_cache_num']}"; //$B_IMG_ROOT_URI assign very_187_config.inc
+							if ($is_robot > 0 && $IS_ROBOT_BF_IMG_NO_LOAD > 0) //$IS_ROBOT_BF_IMG_NO_LOAD assign COMM_FUNC.inc
+							{
+								$case_img_uri = $lazy_placeholder_img;
+							} else if ($IS_NO_MANNER_ROBOT_IP > 0) {
+								$case_img_uri = $lazy_placeholder_img;
+							}
+							$arr_query_result_row[$str_idx]['case'][$row['c_uid']]['imgs'][] = $case_img_uri;
+						}
+						unset($arr_get_img_list);
+					}
+				}
+				$sql->closeCursor();
+			}
+			$faq_join_tb = "";
+			$faq_join_and = "";
+			$faq_join_str_and = "";
+			$faq_join_group_by = "";
+			if ($ca_parent_uid > 0) {
+				$faq_join_tb = ", {$bf_beauty_db}.medical_items_faq MIF";
+				$faq_join_and = "AND FI.f_uid=MIF.f_uid";
+				$faq_join_str_and = "AND MIF.parent_uid={$ca_parent_uid}";
+				$faq_join_group_by = "GROUP BY FI.f_uid";
+			}
+			$query = "
+				SELECT 
+					EF.e_id,
+					FI.f_uid, FI.f_title, FI.related_items, FI.get_f_imgs, FI.img_cache_num, FI.summary_txt
+				FROM 
+					{$bf_beauty_db}.experts_faq EF, {$bf_beauty_db}.faq_info FI{$faq_join_tb}
+				WHERE EF.f_uid=FI.f_uid 
+				{$faq_join_and}
+				AND EF.e_id IN ({$in_uid})
+				AND FI.is_active=2
+				{$faq_join_str_and}
+				{$faq_join_group_by}
+				ORDER BY EF.e_id ASC, FI.sort_num ASC
+			";
+			if ($is_yes_print > 0) $q_start_time = time();
+			$sql = $dbconn->prepare($query);
+			$sql->execute();
+			if ($is_yes_print > 0) get_query_runtime($q_start_time, $query); //get_query_runtime assign COMM_FUNC.inc
+			if (isset($sql)) {
+				while ($row = $sql->fetch(PDO::FETCH_ASSOC)) {
+					$uid = $row['e_id'];
+					$str_idx = "u" . $uid; //크로브라우저에서는 Response시 json같은 오브젝트형은 자체 최적화를위해 키값이 숫자형인것은 자동으로 올림차순으로 처리되기 때문에 원하는 순서로 되자않아 숫자형을 스트링형으로 변경함
+					if ($row['get_f_imgs'] && count($arr_query_result_row[$str_idx]['info']) < 1) {
+						$arr_query_result_row[$str_idx]['info'][$row['f_uid']]['title'] = $row['f_title'];
+						$arr_query_result_row[$str_idx]['info'][$row['f_uid']]['items'] = $row['related_items'];
+						$arr_query_result_row[$str_idx]['info'][$row['f_uid']]['summ'] = $row['summary_txt'];
+						$folder_name = folder_position_v2($row['f_uid']);
+						$file_name = sprintf("%07d", $row['f_uid']);
+						$img_uri = $B_IMG_ROOT_URI . "faq/f_img" . $folder_name . $file_name . "_1.jpg?o={$row['img_cache_num']}"; //$B_IMG_ROOT_URI assign very_187_config.inc
+						if ($is_robot > 0 && $IS_ROBOT_BF_IMG_NO_LOAD > 0) //$IS_ROBOT_BF_IMG_NO_LOAD assign COMM_FUNC.inc
+						{
+							$img_uri = $lazy_placeholder_img;
+						} else if ($IS_NO_MANNER_ROBOT_IP > 0) {
+							$img_uri = $lazy_placeholder_img;
+						}
+						$arr_query_result_row[$str_idx]['info'][$row['f_uid']]['img'] = $img_uri;
+					}
+				}
+				$sql->closeCursor();
+			}
+		}
+	} else if ($paging_type === 'c' || $paging_type === 'dc') {
+		$arr_join_tb = array();
+		$arr_join_and = array();
+		$arr_join_str_and = array();
+		$join_tb = "";
+		$join_and = "";
+		$join_str_and = "";
+		$join_group_by = "";
+		if ($ca_parent_uid > 0) {
+			$arr_join_tb[] = ", {$bf_beauty_db}.medical_items_case MIC";
+			$arr_join_and[] = "AND CI.c_uid=MIC.c_uid";
+			$arr_join_str_and[] = "AND MIC.parent_uid={$ca_parent_uid}";
+			$join_group_by = "GROUP BY CI.c_uid";
+		}
+		$and_b_uid_str = "";
+		$and_cursor_str = "AND CI.c_uid>{$paging_cursor}";
+		$sort_str = "ORDER BY CI.p_sort_num ASC";
+		if ($paging_type === 'dc') {
+			$sort_str = "ORDER BY CI.sort_num ASC";
+			if ($paging_cursor > 0) {
+				$and_cursor_str = "AND CI.sort_num>{$paging_cursor}";
+			} else {
+				$and_cursor_str = "";
+			}
+		}
+		if ($p_uid > 0 && $paging_type === 'dc') {
+			$and_b_uid_str = "AND BI.b_uid={$p_uid}";
+		} else if ($e_uid > 0 && $paging_type === 'dc') {
+			$arr_join_tb[] = ", {$bf_beauty_db}.experts_case EC";
+			$arr_join_and[] = "AND CI.c_uid=EC.c_uid";
+			$arr_join_str_and[] = "AND EC.e_id={$e_uid}";
+		}
+		if (count($arr_join_tb) > 0) {
+			$join_tb = implode("", $arr_join_tb);
+			$join_and = implode(" ", $arr_join_and);
+			$join_str_and = implode(" ", $arr_join_str_and);
+			unset($arr_join_tb);
+			unset($arr_join_and);
+			unset($arr_join_str_and);
+		}
+		if ($last_sort_cursor >= $DEFAULT_P_SORT_NUM) //$DEFAULT_P_SORT_NUM assign verym_187_config.inc
+		{
+			if ($paging_type === 'c') {
+				$sort_str = "ORDER BY CI.c_uid ASC";
+			}
+			$query = "
+				SELECT 
+					BI.b_uid, BI.b_name_cn,
+					CI.c_uid, CI.p_sort_num, CI.sort_num, CI.c_title, CI.price_info, CI.related_items, CI.get_img_list, CI.img_cache_num
+				FROM 
+					{$bf_beauty_db}.beautys_info BI, {$bf_beauty_db}.case_info CI{$join_tb}
+				WHERE BI.b_uid=CI.b_uid
+				{$join_and}
+				{$and_b_uid_str}
+				{$and_cursor_str}
+				AND CI.p_sort_num>={$DEFAULT_P_SORT_NUM}
+				AND CI.is_active=2
+				{$join_str_and}
+				{$join_group_by}
+				{$sort_str}
+				LIMIT {$paging_limit}
+			";
+		} else {
+			$query = "
+				SELECT 
+					BI.b_uid, BI.b_name_cn,
+					CI.c_uid, CI.p_sort_num, CI.sort_num, CI.c_title, CI.price_info, CI.related_items, CI.get_img_list, CI.img_cache_num
+				FROM 
+					{$bf_beauty_db}.beautys_info BI, {$bf_beauty_db}.case_info CI{$join_tb}
+				WHERE BI.b_uid=CI.b_uid
+				{$join_and}
+				{$and_b_uid_str}
+				AND CI.p_sort_num>{$sort_cursor}
+				AND CI.p_sort_num<{$DEFAULT_P_SORT_NUM}
+				AND CI.is_active=2
+				{$join_str_and}
+				{$join_group_by}
+				{$sort_str}
+				LIMIT {$paging_limit}
+			";
+		}
+		if ($is_yes_print > 0) $q_start_time = time();
+		$sql = $dbconn->prepare($query);
+		$sql->execute();
+		if ($is_yes_print > 0) get_query_runtime($q_start_time, $query); //get_query_runtime assign COMM_FUNC.inc
+		$arr_query_temp_result_row = array();
+		$arr_query_result_row = array();
+		$arr_uid = array();
+		if (isset($sql)) {
+			while ($row = $sql->fetch(PDO::FETCH_ASSOC)) {
+				$uid = $row['c_uid'];
+				$arr_uid[] = $uid;
+				if ($paging_type === 'dc') {
+					$last_cursor = $row['sort_num'];
+				} else {
+					$last_cursor = $uid;
+				}
+				$last_sort_cursor = $row['p_sort_num'];
+				$arr_query_temp_result_row[$uid] = $row;
+			}
+			$sql->closeCursor();
+		}
+		$ct_row = count($arr_uid);
+		if ($ct_row < $paging_limit && $last_sort_cursor < $DEFAULT_P_SORT_NUM) //$paging_limit보다 작게 나오고 기본정렬값보다 작으면 기본정렬값 기준대로 한번더 쿼리한다.
+		{
+			if ($paging_type === 'c') {
+				$sort_str = "ORDER BY CI.c_uid ASC";
+			}
+			$re_limit_num = $paging_limit - $ct_row;
+			$query = "
+				SELECT 
+					BI.b_uid, BI.b_name_cn,
+					CI.c_uid, CI.p_sort_num, CI.sort_num, CI.c_title, CI.price_info, CI.related_items, CI.get_img_list, CI.img_cache_num
+				FROM 
+					{$bf_beauty_db}.beautys_info BI, {$bf_beauty_db}.case_info CI{$join_tb}
+				WHERE BI.b_uid=CI.b_uid
+				{$join_and}
+				{$and_b_uid_str}
+				AND CI.p_sort_num>={$DEFAULT_P_SORT_NUM}
+				AND CI.is_active=2
+				{$join_str_and}
+				{$join_group_by}
+				{$sort_str}
+				LIMIT {$re_limit_num}
+			";
+			if ($is_yes_print > 0) $q_start_time = time();
+			$sql = $dbconn->prepare($query);
+			$sql->execute();
+			if ($is_yes_print > 0) get_query_runtime($q_start_time, $query); //get_query_runtime assign COMM_FUNC.inc
+			if (isset($sql)) {
+				while ($row = $sql->fetch(PDO::FETCH_ASSOC)) {
+					$uid = $row['c_uid'];
+					$arr_uid[] = $uid;
+					if ($paging_type === 'dc') {
+						$last_cursor = $row['sort_num'];
+					} else {
+						$last_cursor = $uid;
+					}
+					$last_sort_cursor = $row['p_sort_num'];
+					$arr_query_temp_result_row[$uid] = $row;
+				}
+				$sql->closeCursor();
+			}
+		}
+		foreach ($arr_query_temp_result_row as $uid => $row) {
+			$str_idx = "u" . $uid; //크로브라우저에서는 Response시 json같은 오브젝트형은 자체 최적화를위해 키값이 숫자형인것은 자동으로 올림차순으로 처리되기 때문에 원하는 순서로 되자않아 숫자형을 스트링형으로 변경함
+			$arr_txt = array();
+			$arr_txt[] = "医院 : {$row['b_name_cn']}";
+			if ($row['price_info']) {
+				$row['price_info'] = str_replace("价格 :", "", $row['price_info']);
+				$row['price_info'] = str_replace("价格：", "", $row['price_info']);
+				$arr_txt[] = "价格 : {$row['price_info']}";
+			}
+			if ($row['related_items']) {
+				$row['related_items'] = str_replace("项目 :", "", $row['related_items']);
+				$row['related_items'] = str_replace("项目：", "", $row['related_items']);
+				$arr_txt[] = "项目 : {$row['related_items']}";
+			}
+			$txt_html = "";
+			if (count($arr_txt) > 0) {
+				$txt_html = implode("<br />", $arr_txt);
+			}
+			unset($arr_txt);
+			$arr_query_result_row[$str_idx]['uid'] = $uid;
+			$arr_query_result_row[$str_idx]['title'] = $row['c_title'];
+			$arr_query_result_row[$str_idx]['txt'] = $txt_html;
+			if ($row['get_img_list']) {
+				$folder_name = folder_position_v2($uid);
+				$file_name = sprintf("%07d", $uid);
+				$arr_get_img_list = explode("^", $row['get_img_list']);
+				foreach ($arr_get_img_list as $tail_img_num) {
+					$img_uri = $B_IMG_ROOT_URI . "case/img" . $folder_name . $file_name . "_{$tail_img_num}.jpg?o={$row['img_cache_num']}"; //$B_IMG_ROOT_URI assign very_187_config.inc
+					if ($is_robot > 0 && $IS_ROBOT_BF_IMG_NO_LOAD > 0) //$IS_ROBOT_BF_IMG_NO_LOAD assign COMM_FUNC.inc
+					{
+						$img_uri = $lazy_placeholder_img;
+					} else if ($IS_NO_MANNER_ROBOT_IP > 0) {
+						$img_uri = $lazy_placeholder_img;
+					}
+
+					$arr_query_result_row[$str_idx]['imgs'][] = $img_uri;
+				}
+				unset($arr_get_img_list);
+			} else {
+				$arr_query_result_row[$str_idx]['imgs'][] = $no_img_uri;
+				$arr_query_result_row[$str_idx]['imgs'][] = $no_img_uri;
+			}
+		}
+		unset($arr_query_temp_result_row);
+		$t_record = count($arr_uid);
+	} else if ($paging_type === 'i' || $paging_type === 'di') {
+		$arr_join_tb = array();
+		$arr_join_and = array();
+		$arr_join_str_and = array();
+		$join_tb = "";
+		$join_and = "";
+		$join_str_and = "";
+		$join_group_by = "";
+		if ($ca_parent_uid > 0) {
+			$arr_join_tb[] = ", {$bf_beauty_db}.medical_items_faq MIF";
+			$arr_join_and[] = "AND FI.f_uid=MIF.f_uid";
+			$arr_join_str_and[] = "AND MIF.parent_uid={$ca_parent_uid}";
+			$join_group_by = "GROUP BY FI.f_uid";
+		}
+		$and_b_uid_str = "";
+		$and_cursor_str = "AND FI.f_uid>{$paging_cursor}";
+		$sort_str = "ORDER BY FI.p_sort_num ASC";
+		if ($paging_type === 'di') {
+			$sort_str = "ORDER BY FI.sort_num ASC";
+			if ($paging_cursor > 0) {
+				$and_cursor_str = "AND FI.sort_num>{$paging_cursor}";
+			} else {
+				$and_cursor_str = "";
+			}
+		}
+		if ($p_uid > 0 && $paging_type === 'di') {
+			$and_b_uid_str = "AND BI.b_uid={$p_uid}";
+		} else if ($e_uid > 0 && $paging_type === 'di') {
+			$arr_join_tb[] = ", {$bf_beauty_db}.experts_faq EF";
+			$arr_join_and[] = "AND FI.f_uid=EF.f_uid";
+			$arr_join_str_and[] = "AND EF.e_id={$e_uid}";
+		}
+		if (count($arr_join_tb) > 0) {
+			$join_tb = implode("", $arr_join_tb);
+			$join_and = implode(" ", $arr_join_and);
+			$join_str_and = implode(" ", $arr_join_str_and);
+			unset($arr_join_tb);
+			unset($arr_join_and);
+			unset($arr_join_str_and);
+		}
+		if ($last_sort_cursor >= $DEFAULT_P_SORT_NUM) //$DEFAULT_P_SORT_NUM assign verym_187_config.inc
+		{
+			if ($paging_type === 'i') {
+				$sort_str = "ORDER BY FI.f_uid ASC";
+			}
+			$query = "
+				SELECT 
+					BI.b_uid, BI.b_name_cn,
+					FI.f_uid, FI.p_sort_num, FI.sort_num, FI.f_title, FI.related_items, FI.get_f_imgs, FI.img_cache_num, FI.summary_txt
+				FROM 
+					{$bf_beauty_db}.beautys_info BI, {$bf_beauty_db}.faq_info FI{$join_tb}
+				WHERE BI.b_uid=FI.b_uid
+				{$join_and}
+				{$and_b_uid_str}
+				{$join_str_and}
+				{$and_cursor_str}
+				AND FI.p_sort_num>={$DEFAULT_P_SORT_NUM}
+				AND FI.is_active=2
+				{$join_group_by}
+				{$sort_str}
+				LIMIT {$paging_limit}
+			";
+		} else {
+			$query = "
+				SELECT 
+					BI.b_uid, BI.b_name_cn,
+					FI.f_uid, FI.p_sort_num, FI.sort_num, FI.f_title, FI.related_items, FI.get_f_imgs, FI.img_cache_num, FI.summary_txt
+				FROM 
+					{$bf_beauty_db}.beautys_info BI, {$bf_beauty_db}.faq_info FI{$join_tb}
+				WHERE BI.b_uid=FI.b_uid
+				{$join_and}
+				{$and_b_uid_str}
+				{$join_str_and}
+				AND FI.p_sort_num>{$sort_cursor}
+				AND FI.p_sort_num<{$DEFAULT_P_SORT_NUM}
+				AND FI.is_active=2
+				{$join_group_by}
+				{$sort_str}
+				LIMIT {$paging_limit}
+			";
+		}
+		if ($is_yes_print > 0) $q_start_time = time();
+		$sql = $dbconn->prepare($query);
+		$sql->execute();
+		if ($is_yes_print > 0) get_query_runtime($q_start_time, $query); //get_query_runtime assign COMM_FUNC.inc
+		$arr_query_temp_result_row = array();
+		$arr_query_result_row = array();
+		$arr_uid = array();
+		if (isset($sql)) {
+			while ($row = $sql->fetch(PDO::FETCH_ASSOC)) {
+				$uid = $row['f_uid'];
+				$arr_uid[] = $uid;
+				if ($paging_type === 'di') {
+					$last_cursor = $row['sort_num'];
+				} else {
+					$last_cursor = $uid;
+				}
+				$last_sort_cursor = $row['p_sort_num'];
+				$arr_query_temp_result_row[$uid] = $row;
+			}
+			$sql->closeCursor();
+		}
+		$ct_row = count($arr_uid);
+		if ($ct_row < $paging_limit && $last_sort_cursor < $DEFAULT_P_SORT_NUM) //$paging_limit보다 작게 나오고 기본정렬값보다 작으면 기본정렬값 기준대로 한번더 쿼리한다.
+		{
+			if ($paging_type === 'i') {
+				$sort_str = "ORDER BY FI.f_uid ASC";
+			}
+			$re_limit_num = $paging_limit - $ct_row;
+			$query = "
+				SELECT 
+					BI.b_uid, BI.b_name_cn,
+					FI.f_uid, FI.p_sort_num, FI.sort_num, FI.f_title, FI.related_items, FI.get_f_imgs, FI.img_cache_num, FI.summary_txt
+				FROM 
+					{$bf_beauty_db}.beautys_info BI, {$bf_beauty_db}.faq_info FI{$join_tb}
+				WHERE BI.b_uid=FI.b_uid
+				{$join_and}
+				{$and_b_uid_str}
+				{$join_str_and}
+				AND FI.p_sort_num>={$DEFAULT_P_SORT_NUM}
+				AND FI.is_active=2
+				{$join_group_by}
+				{$sort_str}
+				LIMIT {$re_limit_num}
+			";
+			if ($is_yes_print > 0) $q_start_time = time();
+			$sql = $dbconn->prepare($query);
+			$sql->execute();
+			if ($is_yes_print > 0) get_query_runtime($q_start_time, $query); //get_query_runtime assign COMM_FUNC.inc
+			if (isset($sql)) {
+				while ($row = $sql->fetch(PDO::FETCH_ASSOC)) {
+					$uid = $row['f_uid'];
+					$arr_uid[] = $uid;
+					if ($paging_type === 'di') {
+						$last_cursor = $row['sort_num'];
+					} else {
+						$last_cursor = $uid;
+					}
+					$last_sort_cursor = $row['p_sort_num'];
+					$arr_query_temp_result_row[$uid] = $row;
+				}
+				$sql->closeCursor();
+			}
+		}
+		foreach ($arr_query_temp_result_row as $uid => $row) {
+			$str_idx = "u" . $uid; //크로브라우저에서는 Response시 json같은 오브젝트형은 자체 최적화를위해 키값이 숫자형인것은 자동으로 올림차순으로 처리되기 때문에 원하는 순서로 되자않아 숫자형을 스트링형으로 변경함
+			$arr_query_result_row[$str_idx]['uid'] = $uid;
+			$arr_query_result_row[$str_idx]['title'] = $row['f_title'];
+			$arr_query_result_row[$str_idx]['items'] = $row['related_items'];
+			$arr_query_result_row[$str_idx]['summ'] = $row['summary_txt'];
+			if ($row['get_f_imgs']) {
+				$folder_name = folder_position_v2($uid);
+				$file_name = sprintf("%07d", $uid);
+				$img_uri = $B_IMG_ROOT_URI . "faq/f_img" . $folder_name . $file_name . "_1.jpg?o={$row['img_cache_num']}"; //$B_IMG_ROOT_URI assign very_187_config.inc
+				if ($is_robot > 0 && $IS_ROBOT_BF_IMG_NO_LOAD > 0) //$IS_ROBOT_BF_IMG_NO_LOAD assign COMM_FUNC.inc
+				{
+					$img_uri = $lazy_placeholder_img;
+				} else if ($IS_NO_MANNER_ROBOT_IP > 0) {
+					$img_uri = $lazy_placeholder_img;
+				}
+			} else {
+				$img_uri = $no_img_uri;
+			}
+			$arr_query_result_row[$str_idx]['img'] = $img_uri;
+		}
+		unset($arr_query_temp_result_row);
+		$t_record = count($arr_uid);
+	}
+	dbPDOClose($bf_beauty_db, $bf_beauty_host);
+}
+
+unset($arr_req_data);
+if ($is_yes_print > 0) {
+	echo "arr_query_runtime=";
+	echo ("<pre>");
+	print_r($arr_query_runtime);
+	echo ("</pre>");
+	unset($arr_query_runtime);
+}
+if ($is_yes_print > 1) {
+	echo ("<pre>");
+	print_r($arr_query_result_row);
+	echo ("</pre>");
+}
+
+$message = $arr_result_message_info[$result_num]; //$arr_result_message_info api/config.inc
+
+$arr_result = array(
+	'result' => $result_num,
+	'message' => $message,
+	'count' => $t_record,
+	'pageSize' => $paging_limit,
+	'lastID' => $last_cursor,
+	'lastS' => $last_sort_cursor,
+	'rows' => $arr_query_result_row
+);
+/*
+$arr_add_result = array();
+if($is_yes_print>0) 
+{
+	$arr_add_result['arr_return'] = $arr_query_runtime;
+	unset($arr_query_runtime);
+}
+if(count($arr_add_result) > 0)
+{
+	$arr_result = array_merge($arr_result, $arr_add_result);
+	unset($arr_add_result);
+}
+*/
+echo json_encode($arr_result);
+unset($arr_query_result_row);
+unset($arr_result);

@@ -1,0 +1,10 @@
+<?php
+if(!$IS_BT_VERYM_CONFIG) include_once "PUBLIC_FUNC/BUYFINE/beauty/verym_187_config.inc";
+if($ABSOLUTE_HTTPS>0 && $_SERVER['REQUEST_SCHEME']=='http')
+{
+	Header("Location:https://{$_SERVER['HTTP_HOST']}{$_SERVER['REQUEST_URI']}");
+	exit;
+}
+//header("Location:/main.html");
+header("Location:/list.html");
+?>

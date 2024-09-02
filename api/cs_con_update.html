@@ -1,0 +1,134 @@
+<?
+header("Content-Type: application/json; charset=utf-8");
+//header("Cache-Control: no-cache, must-revalidate");
+header("Cache-Control: no-store, no-cache, must-revalidate");
+if(!$IS_API_CONFIG) include_once "PUBLIC_FUNC/BUYFINE/api/config.inc";
+include_once "PUBLIC_FUNC/BUYFINE/COMM_FUNC.inc";
+include_once "PUBLIC_FUNC/BUYFINE/func_core.inc";
+if(!$IS_FUNC_EXTRA) include_once "PUBLIC_FUNC/BUYFINE/func_extra.inc";
+if(!$IS_BT_VERYM_CONFIG) include_once "PUBLIC_FUNC/BUYFINE/beauty/verym_187_config.inc";
+
+$is_robot = 0;
+foreach($ARR_ROBOT_STR AS $robot_str)
+{
+	if(preg_match("/".$robot_str."/i", $_SERVER['HTTP_USER_AGENT']))
+	{
+		$is_robot = 1;
+		break;
+	}
+	else
+	{
+	}
+}
+foreach($ARR_ROBOT_IP_LISTS AS $robot_ip_str) // asing $USER_REMOTE_IP, $ARR_ROBOT_IP_LISTS COMM_FUNC
+{
+	if(preg_match("/".$robot_ip_str."/i", $USER_REMOTE_IP))
+	{
+		$is_robot = 1;
+		break;
+	}
+	else
+	{
+	}
+}
+$no_manner_ip_count = count($ARR_ROBOT_NO_MANNER_IP_LISTS); // $USER_REMOTE_IP, $ARR_ROBOT_NO_MANNER_IP_LISTS assign COMM_FUNC.inc
+if($no_manner_ip_count > 0)
+{
+	if(in_array($USER_REMOTE_IP, $ARR_ROBOT_NO_MANNER_IP_LISTS))
+	{
+		$is_robot = 1;
+	}
+}
+if($is_robot) exit;
+
+$alex_print = 0;
+if($_POST['alex_print'] > 0)
+{
+	$alex_print = intval($_POST['alex_print']);
+}
+else if($_GET['alex_print'] > 0)
+{
+	$alex_print = intval($_GET['alex_print']);
+}
+$is_yes_print = 0;
+if($alex_print > 0)
+{
+	if($alex_print>0 && $_MEMBER['m_uid']=='1') $is_yes_print=$alex_print;
+	if($alex_print>0 && $NO_AUTH_PRINT>0) $is_yes_print=$alex_print;//$NO_AUTH_PRINT assign verym_187_config.inc
+}
+$is_yes_print = 0;
+
+/* test var start */
+/*
+$_POST['con_info'] = "姓名:美女美男
+电话:12300000000
+
+it's test ~~
+ok~^:";
+$is_yes_print = 2;
+*/
+/* test var end */
+
+$is_no_err = 1;
+$result_num = 0;
+
+if(!$IS_API_PUBLIC_VARS) include_once "{$_SERVER['DOCUMENT_ROOT']}/api/_public_var.inc";//return $arr_req_data, $is_no_err
+
+$info = "";
+if($arr_req_data['con_info'])
+{
+	$info = strip_tags($arr_req_data['con_info']);
+}
+if($is_no_err>0 && !$info)
+{
+	$is_no_err = 0;
+	$result_num = 0;
+}
+if($is_yes_print > 0)
+{
+	$arr_query_runtime = array();
+	$query_runtime_idx = 0;
+	//echo "REMOTE_ADDR=".$_SERVER['REMOTE_ADDR']."<br />";
+}
+if($is_no_err > 0)
+{
+	$dbconn = dbPDOConn($bf_beauty_db,$bf_beauty_host);
+	$dbconn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	$query = "INSERT INTO {$bf_beauty_db}.cs_info (uid,info,regist_ip,regist_time) VALUES (NULL,:info,'{$_SERVER['REMOTE_ADDR']}',now())";
+	if($is_yes_print>0) $q_start_time=time();
+	$sql = $dbconn->prepare($query);
+	//$sql->bindParam(":info", $info);
+	$sql->bindValue(':info', $info, PDO::PARAM_STR);
+	$sql->execute();
+	if($is_yes_print>0) get_query_runtime($q_start_time,$query);//get_query_runtime assign COMM_FUNC.inc
+	$arr_mysql_err = $sql->errorInfo();
+	$sql->closeCursor();
+	$mysql_errno = (int) $arr_mysql_err['1'];
+	if($mysql_errno != '0')
+	{
+		$result_num = -67;
+	}
+	else
+	{
+		$result_num = 1;
+	}
+	unset($arr_mysql_err);
+	
+	dbPDOClose($bf_beauty_db,$bf_beauty_host);
+}
+unset($arr_req_data);
+if($is_yes_print>0) 
+{
+	echo "arr_query_runtime=";
+	echo("<pre>");print_r($arr_query_runtime);echo("</pre>");
+	unset($arr_query_runtime);	
+}
+$message = $arr_result_message_info[$result_num];//$arr_result_message_info api/config.inc
+
+$arr_result = array(
+	'result'=>$result_num,
+	'message'=>$message
+);
+echo json_encode($arr_result);
+unset($arr_result);
+?>

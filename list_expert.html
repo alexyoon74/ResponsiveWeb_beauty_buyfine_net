@@ -1,0 +1,488 @@
+<?
+if(!$INCLUDE_COMM) include_once "PUBLIC_FUNC/BUYFINE/COMM_FUNC.inc";
+if(!$IS_FUNC_CORE) include_once "PUBLIC_FUNC/BUYFINE/func_core.inc";
+if(!$IS_API_CONFIG) include_once "PUBLIC_FUNC/BUYFINE/api/config.inc";
+if(!$IS_BT_VERYM_CONFIG) include_once "PUBLIC_FUNC/BUYFINE/beauty/verym_187_config.inc";
+if($ABSOLUTE_HTTPS>0 && $_SERVER['REQUEST_SCHEME']=='http')
+{
+	Header("Location:https://{$_SERVER['HTTP_HOST']}{$_SERVER['REQUEST_URI']}");
+	exit;
+}
+$is_yes_print = 0;
+if($_GET['alex_print'])
+{
+	$_GET['alex_print'] = intval($_GET['alex_print']);
+	if($_GET['alex_print']>0 && $_MEMBER['m_uid']=='1') $is_yes_print=$_GET['alex_print'];
+	if($_GET['alex_print']>0 && $NO_AUTH_PRINT>0) $is_yes_print=$_GET['alex_print'];//$NO_AUTH_PRINT assign verym_187_config.inc
+}
+if($is_yes_print > 0)
+{
+	$arr_query_runtime = array();
+	$query_runtime_idx = 0;
+	echo "REMOTE_ADDR=".$_SERVER['REMOTE_ADDR']."<br />";
+}
+
+$arr_get = array();
+foreach($_GET AS $key=>$value)
+{
+	$value = trim($value);
+	if(!$value) continue;
+	//if($key=='arrSSV') continue;
+	$arr_get[$key] = $value;
+}
+unset($_GET);
+if($is_yes_print > 1)
+{
+	echo "arr_get 1 = ";
+	echo("<pre>");print_r($arr_get);echo("</pre>");
+}
+$arr_get = array_map('str_filter', $arr_get); //str_replace
+$arr_get = array_map('db_escape_string', $arr_get); //mysql_escape_string
+if($is_yes_print > 1)
+{
+	echo "arr_get 2 = ";
+	echo("<pre>");print_r($arr_get);echo("</pre>");
+}
+
+$is_robot = 0;
+$LAZY_IS_ROBOT = 0;
+$LAZY_IS_IP_ROBOT = 0;
+foreach($ARR_ROBOT_STR AS $robot_str) // asing ARR_ROBOT_STR COMM_FUNC.inc
+{
+	if(preg_match("/".$robot_str."/i", $_SERVER['HTTP_USER_AGENT']))
+	{
+		$is_robot = 1;
+		$LAZY_IS_ROBOT = 1;
+		break;
+	}
+	else
+	{
+	}
+}
+foreach($ARR_ROBOT_IP_LISTS AS $robot_ip_str) // asing $USER_REMOTE_IP, $ARR_ROBOT_IP_LISTS COMM_FUNC
+{
+	if(preg_match("/".$robot_ip_str."/i", $USER_REMOTE_IP))
+	{
+		$is_robot = 1;
+		$LAZY_IS_IP_ROBOT = 1;
+		break;
+	}
+	else
+	{
+	}
+}
+$IS_NO_MANNER_ROBOT_IP = 0;
+$no_manner_ip_count = count($ARR_ROBOT_NO_MANNER_IP_LISTS); // $USER_REMOTE_IP, $ARR_ROBOT_NO_MANNER_IP_LISTS assign COMM_FUNC.inc
+if($no_manner_ip_count > 0)
+{
+	if(in_array($USER_REMOTE_IP, $ARR_ROBOT_NO_MANNER_IP_LISTS))
+	{
+		$is_robot = 1;
+		$LAZY_IS_IP_ROBOT = 1;
+		$IS_NO_MANNER_ROBOT_IP = 1;
+	}
+}
+
+$dbconn = dbPDOConn($bf_beauty_db,$bf_beauty_host);
+
+$join_tb = "";
+$join_and = "";
+$join_str_and = "";
+$join_group_by = "";
+$ca_parent_uid = 0;
+if($arr_get['c'])
+{
+	$arr_get['c'] = intval($arr_get['c']);
+	if($ARR_B_CA_1_STR[$arr_get['c']])//$ARR_B_CA_1_STR assign verym_187_config.inc
+	{
+		$ca_parent_uid = $arr_get['c'];
+		$join_tb = ", {$bf_beauty_db}.medical_items_experts MIE";
+		$join_and = "AND EI.e_id=MIE.e_id";
+		$join_str_and = "AND MIE.parent_uid={$ca_parent_uid}";
+		$join_group_by = "GROUP BY EI.e_id";
+	}
+}
+
+$limit_num = 10;
+$query = "
+	SELECT 
+		BI.b_uid, BI.b_name_cn,
+		EI.e_id, EI.p_sort_num, EI.name, EI.position, EI.major_specialty, EI.get_img_uri, EI.img_cache_num
+	FROM 
+		{$bf_beauty_db}.beautys_info BI, {$bf_beauty_db}.experts_info EI{$join_tb}
+	WHERE BI.b_uid=EI.b_uid
+	{$join_and}
+	AND EI.p_sort_num BETWEEN 1 AND 50
+	AND EI.is_active=2
+	{$join_str_and}
+	{$join_group_by}
+	ORDER BY EI.p_sort_num ASC, EI.e_id ASC
+	LIMIT {$limit_num}
+";
+if($is_yes_print>0) $q_start_time=time();
+$sql = $dbconn->prepare($query);
+$sql->execute();
+if($is_yes_print>0) get_query_runtime($q_start_time,$query);//get_query_runtime assign COMM_FUNC.inc
+$arr_query_result_row = array();
+$arr_e_id = array();
+if(isset($sql))
+{
+	while($row=$sql->fetch(PDO::FETCH_ASSOC))
+	{
+		$e_id = $row['e_id'];
+		$arr_e_id[] = $e_id;
+		$arr_query_result_row[$e_id] = $row;
+	}
+	$sql->closeCursor();
+}
+$ct_row = count($arr_e_id);
+if($ct_row < $limit_num)
+{
+	$re_limit_num = $limit_num-$ct_row;
+	$query = "
+		SELECT 
+			BI.b_uid, BI.b_name_cn,
+			EI.e_id, EI.p_sort_num, EI.name, EI.position, EI.major_specialty, EI.get_img_uri, EI.img_cache_num
+		FROM 
+			{$bf_beauty_db}.beautys_info BI, {$bf_beauty_db}.experts_info EI{$join_tb}
+		WHERE BI.b_uid=EI.b_uid
+		{$join_and}
+		AND EI.p_sort_num>={$DEFAULT_P_SORT_NUM}
+		AND EI.is_active=2
+		{$join_str_and}
+		{$join_group_by}
+		ORDER EI.e_id ASC
+		LIMIT {$re_limit_num}
+	";//$DEFAULT_P_SORT_NUM assign verym_187_config.inc
+	if($is_yes_print>0) $q_start_time=time();
+	$sql = $dbconn->prepare($query);
+	$sql->execute();
+	if($is_yes_print>0) get_query_runtime($q_start_time,$query);//get_query_runtime assign COMM_FUNC.inc
+	if(isset($sql))
+	{
+		while($row=$sql->fetch(PDO::FETCH_ASSOC))
+		{
+			$e_id = $row['e_id'];
+			$arr_e_id[] = $e_id;
+			$arr_query_result_row[$e_id] = $row;
+		}
+		$sql->closeCursor();
+	}
+}
+if($ct_row > 0)
+{
+	$in_e_id = implode(",", $arr_e_id);
+	
+	$case_join_tb = "";
+	$case_join_and = "";
+	$case_join_str_and = "";
+	$case_join_group_by = "";
+	if($ca_parent_uid > 0)
+	{
+		$case_join_tb = ", {$bf_beauty_db}.medical_items_case MIC";
+		$case_join_and = "AND CI.c_uid=MIC.c_uid";
+		$case_join_str_and = "AND MIC.parent_uid={$ca_parent_uid}";
+		$case_join_group_by = "GROUP BY CI.c_uid";
+	}
+	$query = "
+		SELECT 
+			EC.e_id,
+			CI.c_uid, CI.c_title, CI.price_info, CI.related_items, CI.get_img_list, CI.img_cache_num
+		FROM 
+			{$bf_beauty_db}.experts_case EC, {$bf_beauty_db}.case_info CI{$case_join_tb}
+		WHERE EC.c_uid=CI.c_uid 
+		{$case_join_and}
+		AND EC.e_id IN ({$in_e_id})
+		AND CI.is_active=2
+		{$case_join_str_and}
+		{$case_join_group_by}
+		ORDER BY EC.e_id ASC, CI.sort_num ASC
+	";
+	if($is_yes_print>0) $q_start_time=time();
+	$sql = $dbconn->prepare($query);
+	$sql->execute();
+	if($is_yes_print>0) get_query_runtime($q_start_time,$query);//get_query_runtime assign COMM_FUNC.inc
+	if(isset($sql))
+	{
+		while($row=$sql->fetch(PDO::FETCH_ASSOC))
+		{
+			$e_id = $row['e_id'];
+			if($row['get_img_list'] && count($arr_query_result_row[$e_id]['case'])<1)
+			{
+				$arr_query_result_row[$e_id]['case'][$row['c_uid']]['c_title'] = $row['c_title'];
+				$arr_query_result_row[$e_id]['case'][$row['c_uid']]['price_info'] = $row['price_info'];
+				$arr_query_result_row[$e_id]['case'][$row['c_uid']]['related_items'] = $row['related_items'];
+				$arr_query_result_row[$e_id]['case'][$row['c_uid']]['get_img_list'] = $row['get_img_list'];
+				$arr_query_result_row[$e_id]['case'][$row['c_uid']]['img_cache_num'] = $row['img_cache_num'];
+			}
+		}
+		$sql->closeCursor();
+	}
+	
+	$faq_join_tb = "";
+	$faq_join_and = "";
+	$faq_join_str_and = "";
+	$faq_join_group_by = "";
+	if($ca_parent_uid > 0)
+	{
+		$faq_join_tb = ", {$bf_beauty_db}.medical_items_faq MIF";
+		$faq_join_and = "AND FI.f_uid=MIF.f_uid";
+		$faq_join_str_and = "AND MIF.parent_uid={$ca_parent_uid}";
+		$faq_join_group_by = "GROUP BY FI.f_uid";
+	}
+	$query = "
+		SELECT 
+			EF.e_id,
+			FI.f_uid, FI.f_title, FI.related_items, FI.get_f_imgs, FI.img_cache_num, FI.summary_txt
+		FROM 
+			{$bf_beauty_db}.experts_faq EF, {$bf_beauty_db}.faq_info FI{$faq_join_tb}
+		WHERE EF.f_uid=FI.f_uid 
+		{$faq_join_and}
+		AND EF.e_id IN ({$in_e_id})
+		AND FI.is_active=2
+		{$faq_join_str_and}
+		{$faq_join_group_by}
+		ORDER BY EF.e_id ASC, FI.sort_num ASC
+	";
+	if($is_yes_print>0) $q_start_time=time();
+	$sql = $dbconn->prepare($query);
+	$sql->execute();
+	if($is_yes_print>0) get_query_runtime($q_start_time,$query);//get_query_runtime assign COMM_FUNC.inc
+	if(isset($sql))
+	{
+		while($row=$sql->fetch(PDO::FETCH_ASSOC))
+		{
+			$e_id = $row['e_id'];
+			if($row['get_f_imgs'] && count($arr_query_result_row[$e_id]['faq'])<1)
+			{
+				$arr_query_result_row[$e_id]['faq'][$row['f_uid']]['f_title'] = $row['f_title'];
+				$arr_query_result_row[$e_id]['faq'][$row['f_uid']]['related_items'] = $row['related_items'];
+				$arr_query_result_row[$e_id]['faq'][$row['f_uid']]['get_f_imgs'] = $row['get_f_imgs'];
+				$arr_query_result_row[$e_id]['faq'][$row['f_uid']]['img_cache_num'] = $row['img_cache_num'];
+				$arr_query_result_row[$e_id]['faq'][$row['f_uid']]['summary_txt'] = $row['summary_txt'];
+			}
+		}
+		$sql->closeCursor();
+	}
+}
+
+dbPDOClose($bf_beauty_db,$bf_beauty_host);
+
+if($is_yes_print>1)
+{
+	echo "arr_query_result_row = ";
+	echo("<pre>");print_r($arr_query_result_row);echo("</pre>");
+}
+unset($arr_b_uid);
+
+if($is_yes_print>0) 
+{
+	echo "arr_query_runtime=";
+	echo("<pre>");print_r($arr_query_runtime);echo("</pre>");
+	unset($arr_query_runtime);
+	//$print_js_var_str = "&alex_print={$is_yes_print}";
+}
+
+$arr_page_title = array();
+foreach($ARR_B_CA_1_STR AS $key=>$value)
+{
+	if($value=='其他') continue;
+	$arr_page_title[] = $value;
+}
+if(count($arr_page_title) > 0)
+{
+	$PAGE_TITLE = "医生 - ".implode(", ",$arr_page_title);
+}
+unset($arr_page_title);
+
+$CSS_FILES = array("{$CSS_HOST_URI}list.css?o={$JS_CSS_CACHE_STR}");
+$JS_FILES = array("{$JS_HOST_URI}jquery-2.1.4.min.js?o={$JS_CSS_CACHE_STR}","{$JS_HOST_URI}jquery.lazyload-1.9.3.js?o={$JS_CSS_CACHE_STR}");
+$is_need_api_js_str = 1;
+$isNoNeedCache = 1;
+$arr_get['l'] = 'e';
+$is_need_sub_menu = 1;
+include_once "{$_SERVER['DOCUMENT_ROOT']}/inc/header.inc";
+?>
+<div id="listContent">
+	<div class="list-block">
+<?
+$blur_css = "";
+if($IS_IMG_BLUR_FILTER>0 || $is_robot>0)//$IS_IMG_BLUR_FILTER assign header.inc
+{
+	$blur_css = " img-blur";//img-blur assign default.css
+}
+$lazy_placeholder_img = $B_LAZY_BLANK_IMG;//$B_LAZY_BLANK_IMG assign verym_187_config.inc
+$no_img_uri = $B_NO_IMG;//$B_NO_IMG assign verym_187_config.inc
+$last_cursor_id = 0;
+$last_s_cur_id = 0;
+foreach($arr_query_result_row AS $e_id=>$row)
+{
+	$case_html = "";
+	if(count($row['case']) > 0)
+	{
+		foreach($row['case'] AS $c_uid=>$arr_case)
+		{
+			$arr_txt = array();
+			if($arr_case['price_info'])
+			{
+				$arr_txt[] = $arr_case['price_info'];
+			}
+			if($arr_case['related_items'])
+			{
+				$arr_txt[] = $arr_case['related_items'];
+			}
+			$txt_html = "";
+			if(count($arr_txt) > 0)
+			{
+				$txt_html = implode("<br />",$arr_txt);
+			}
+			unset($arr_txt);
+			$img_html = "";
+			if($arr_case['get_img_list'])
+			{
+				$folder_name = folder_position_v2($c_uid);
+				$file_name = sprintf("%07d",$c_uid);
+				$arr_get_img_list = explode("^", $arr_case['get_img_list']);
+				foreach($arr_get_img_list AS $tail_img_num)
+				{
+					$img_uri = $B_IMG_ROOT_URI."case/img".$folder_name.$file_name."_{$tail_img_num}.jpg?o={$arr_case['img_cache_num']}";//$B_IMG_ROOT_URI assign very_187_config.inc
+					if($is_robot>0 && $IS_ROBOT_BF_IMG_NO_LOAD>0)//$IS_ROBOT_BF_IMG_NO_LOAD assign COMM_FUNC.inc
+					{
+						$img_uri = $lazy_placeholder_img;
+					}
+					else if($IS_NO_MANNER_ROBOT_IP > 0)
+					{
+						$img_uri = $lazy_placeholder_img;
+					}
+					$img_html .= "<p><img class=\"lazy{$blur_css}\" src=\"{$lazy_placeholder_img}\" data-original=\"{$img_uri}\" alt=\"ci_{$c_uid}_{$tail_img_num}\" /></p>";
+				}
+			}
+			else
+			{
+				$img_html = "<p><img class=\"lazy{$blur_css}\" src=\"{$lazy_placeholder_img}\" data-original=\"{$no_img_uri}\" alt=\"ci_{$c_uid}_{$tail_img_num}\" /></p>";
+			}
+			$case_html = "<div class=\"list-item add a-href-link\" link=\"/detail_case.html?l={$arr_get['l']}&uid={$c_uid}\">
+				<div class=\"div-txt\">
+		    		<p class=\"p-tit\">{$arr_case['c_title']}</p>
+		    		<p class=\"p-txt\">{$txt_html}</p>
+		    	</div>
+		    	<div class=\"div-img\">
+		    		{$img_html}
+		    	</div>
+		    </div>";
+			unset($txt_html);
+			unset($img_html);
+			break;
+		}
+	}
+	
+	$faq_html = "";
+	if(count($row['faq']) > 0)
+	{
+		foreach($row['faq'] AS $f_uid=>$arr_faq)
+		{
+			//image.buyfine.net/images/public3/beauty/faq/f_img
+			$arr_txt = array();
+			if($arr_faq['related_items'])
+			{
+				$arr_txt[] = "<p class=\"p-txt\">{$arr_faq['related_items']}</p>";
+			}
+			if($arr_faq['summary_txt'])
+			{
+				$arr_txt[] = "<p class=\"p-txt\">{$arr_faq['summary_txt']}</p>";
+			}
+			$txt_html = "";
+			if(count($arr_txt) > 0)
+			{
+				$txt_html = implode("\n",$arr_txt);
+			}
+			unset($arr_txt);
+			$img_uri = "";
+			if($arr_faq['get_f_imgs'])
+			{
+				$folder_name = folder_position_v2($f_uid);
+				$file_name = sprintf("%07d",$f_uid);
+				$img_uri = $B_IMG_ROOT_URI."faq/f_img".$folder_name.$file_name."_1.jpg?o={$arr_faq['img_cache_num']}";//$B_IMG_ROOT_URI assign very_187_config.inc
+			}
+			else
+			{
+				$img_uri = $no_img_uri;
+			}
+			if($is_robot>0 && $IS_ROBOT_BF_IMG_NO_LOAD>0)//$IS_ROBOT_BF_IMG_NO_LOAD assign COMM_FUNC.inc
+			{
+				$img_uri = $lazy_placeholder_img;
+			}
+			else if($IS_NO_MANNER_ROBOT_IP > 0)
+			{
+				$img_uri = $lazy_placeholder_img;
+			}
+			$faq_html = "<div class=\"list-item more a-href-link\" link=\"/detail_info.html?l={$arr_get['l']}&uid={$f_uid}\">
+		    	<div class=\"div-img\">
+		    		<img class=\"lazy{$blur_css}\" src=\"{$lazy_placeholder_img}\" data-original=\"{$img_uri}\" alt=\"fi_{$f_uid}\" />
+		    	</div>
+		    	<div class=\"div-txt\">
+		    		<p class=\"p-tit\">{$arr_faq['f_title']}</p>
+		    		{$txt_html}
+		    	</div>
+		    </div>";
+		    unset($txt_html);
+			unset($img_uri);
+			break;
+		}
+	}
+	
+	$uid = $e_id;
+	if($row['get_img_uri'])
+	{
+		$folder_name = folder_position_v2($uid);
+		$file_name = sprintf("%07d",$uid);
+		$img_uri = $B_IMG_ROOT_URI."expert/img".$folder_name.$file_name."_1.jpg?o={$row['img_cache_num']}";//$B_IMG_ROOT_URI assign very_187_config.inc
+	}
+	else
+	{
+		$img_uri = $no_img_uri;
+	}
+	if($is_robot>0 && $IS_ROBOT_BF_IMG_NO_LOAD>0)//$IS_ROBOT_BF_IMG_NO_LOAD assign COMM_FUNC.inc
+	{
+		$img_uri = $lazy_placeholder_img;
+	}
+	else if($IS_NO_MANNER_ROBOT_IP > 0)
+	{
+		$img_uri = $lazy_placeholder_img;
+	}
+	
+	echo "<div class=\"list-e-row\">
+	    	<div class=\"list-item a-href-link\" link=\"/detail_expert.html?l={$arr_get['l']}&uid={$uid}\">
+		        <div class=\"div-img\">
+		        	<img class=\"lazy{$blur_css}\" src=\"{$lazy_placeholder_img}\" data-original=\"{$img_uri}\" alt=\"di_{$uid}\" />
+		        </div>
+		        <div class=\"div-txt\">
+		        	<p class=\"p-tit\"><span class=\"s-tit\">{$row['name']}</span> {$row['b_name_cn']} {$row['position']}</p>
+		        	<p class=\"p-txt\">{$row['major_specialty']}</p>
+		        </div>
+		    </div>
+		    {$case_html}
+		    {$faq_html}
+	</div>";
+	unset($case_html);
+	unset($faq_html);
+	$last_cursor_id = $uid;
+	$last_s_cur_id = $row['p_sort_num'];
+}
+unset($arr_query_result_row);
+?>
+	</div>
+</div>	
+<?
+/* paging scroll vars start  */
+$IS_NEED_PAGING_SCROLL = 1;
+$paging_type = "e";//의사
+$paging_sub_ca = $ca_parent_uid;//sub category
+$paging_rows = $limit_num;
+$paging_uri = "/api/api_list.html";
+$paging_img_blur = $blur_css;
+/* paging scroll vars end  */
+
+$lazy_layer_obj = "#listContent img";
+include_once "{$_SERVER['DOCUMENT_ROOT']}/inc/footer.inc";
+?>
